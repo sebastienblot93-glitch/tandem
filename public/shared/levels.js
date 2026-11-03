@@ -36,6 +36,9 @@
     { name: 'Souffle', sub: 'Courants d’air et interrupteurs', theme: 'ice' },
     { name: 'Mécanismes', sub: 'Bascules, relais et ruines', theme: 'ruins' },
     { name: 'Cosmos', sub: 'Tout ce que vous savez, en plus haut', theme: 'space' },
+    { name: 'Précision', sub: 'Chaque case compte', theme: 'forge' },
+    { name: 'Casse-têtes', sub: 'Réfléchir à deux', theme: 'arcane' },
+    { name: 'Maîtrise', sub: 'Rien ne vous sera épargné', theme: 'sky' },
   ];
 
   const LEVELS = [
@@ -415,6 +418,237 @@
         put(129, 5, 'F');
         rect(134, 3, 1, 3, 'D'); rect(137, 3, 1, 3, 'D');
       }, { rhythm: { period: 90, on: 44 }, rspike: { period: 110, on: 40 }, frag: { delay: 26, restore: 220 } }, [140, 22]),
+
+    /* ================= Chapitre 8 : Précision ================= */
+    make(7, 'Pylônes',
+      'Des pylônes d’une case au-dessus des pics, espacés de 4 à 5 cases : décollez du tout dernier pixel. Plus loin, deux plaques sur deux pylônes éloignés doivent être tenues ENSEMBLE pour ouvrir la grille, qui se referme vite. Le deuxième à partir doit rattraper le temps perdu.',
+      ({ rect, put }) => {
+        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
+        rect(1, 13, 9, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        rect(10, 15, 36, 1, '^'); rect(47, 13, 10, 3, '#');
+        // champ A : 4 à 5 cases entre pylônes, avec dénivelés
+        pillar(14, 1, 13); pillar(19, 1, 12); pillar(25, 1, 12); pillar(29, 2, 10); pillar(35, 1, 11); pillar(41, 1, 13);
+        put(30, 9, 'F'); put(49, 12, 'F');
+        // champ B : deux plaques éloignées, grille qui se referme
+        rect(57, 15, 29, 1, '^');
+        pillar(60, 2, 13); pillar(65, 1, 13); pillar(70, 2, 12); pillar(76, 1, 11); pillar(81, 1, 12);
+        put(60, 12, 'a'); put(70, 11, 'a'); put(61, 12, 'F');
+        rect(86, 13, 7, 3, '#'); rect(89, 1, 1, 12, 'A'); put(91, 12, 'F');
+        // champ C
+        rect(93, 15, 18, 1, '^');
+        pillar(97, 1, 13); pillar(102, 1, 12); pillar(107, 1, 13);
+        rect(111, 13, 8, 3, '#'); put(113, 12, 'F');
+        // champ D : plafond à 3 cases, sauts plats de 4 cases seulement
+        rect(119, 15, 59, 1, '^'); rect(120, 1, 58, 9, '#');
+        [[123, 13], [128, 13], [132, 13], [137, 14], [141, 13], [146, 13], [150, 13], [155, 13], [160, 13], [164, 13], [169, 13], [173, 13]].forEach(([x, t]) => pillar(x, 1, t));
+        put(141, 12, 'F');
+        rect(178, 13, 11, 3, '#');
+        rect(183, 10, 1, 3, 'D'); rect(186, 10, 1, 3, 'D');
+      }, { latch: { 1: 330 } }, [190, 16]),
+
+    make(7, 'Lune',
+      'Ici, la gravité est faible : on saute loin, on retombe lentement. Des pylônes espacés de 6 à 7 cases, puis deux murs à franchir en saut en chaîne (un tunnel s’ouvre quand l’un tient sa plaque en haut). Pour finir, deux plaques à tenir ensemble, très loin l’une de l’autre.',
+      ({ rect, put }) => {
+        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
+        rect(1, 13, 9, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        rect(10, 15, 68, 1, '^');
+        [[16, 13], [24, 12], [32, 13], [39, 11], [47, 12], [55, 13], [62, 11], [70, 12]].forEach(([x, t]) => pillar(x, 1, t));
+        put(39, 10, 'F');
+        rect(78, 13, 41, 3, '#'); put(80, 12, 'F');
+        // mur 1 : 6 cases, tunnel fermé par la grille A, plaque a sur la corniche
+        rect(90, 7, 6, 6, '#'); rect(91, 12, 5, 1, '.'); put(90, 12, 'A'); put(93, 6, 'a'); put(98, 12, 'F');
+        // mur 2 : 5 cases, grille B, plaque b
+        rect(106, 8, 5, 5, '#'); rect(107, 12, 4, 1, '.'); put(106, 12, 'B'); put(108, 7, 'b'); put(113, 12, 'F');
+        // pylônes à plaques : c en 124 et c en 139 (les deux ensemble ouvrent la grille C, qui se referme)
+        rect(119, 15, 36, 1, '^');
+        pillar(124, 2, 13); pillar(132, 1, 13); pillar(139, 2, 12); pillar(148, 1, 13);
+        put(124, 12, 'c'); put(139, 11, 'c'); put(132, 12, 'F');
+        rect(155, 13, 25, 3, '#'); rect(162, 1, 1, 12, 'C'); put(158, 12, 'F');
+        rect(172, 10, 1, 3, 'D'); rect(176, 10, 1, 3, 'D');
+      }, { phys: { gravity: 0.25, jump: -7.5, spring: -11, maxFall: 8 }, latch: { 3: 480 } }, [180, 16]),
+
+    make(7, 'Plomb',
+      'Gravité lourde : on retombe vite, on ne franchit plus que 3 cases de vide. Sautez de pilier en pilier, passez le mur à tunnel, puis l’escalier fantôme : l’un tient la plaque du bas pour que l’autre monte, et l’autre tient celle du haut pour ouvrir la grille. Enfin, une cloche très haute : saut en chaîne, puis le pont ne dure pas.',
+      ({ rect, put }) => {
+        const pillar = (tx, w, top) => rect(tx, top, w, 17 - top, '#');
+        rect(1, 15, 9, 3, '#'); put(3, 14, '1'); put(5, 14, '2');
+        rect(10, 17, 43, 1, '^');
+        [[13, 15], [17, 15], [21, 14], [25, 14], [29, 15], [33, 14], [37, 13], [41, 14], [45, 15], [49, 15]].forEach(([x, t]) => pillar(x, 1, t));
+        put(25, 13, 'F');
+        rect(53, 15, 72, 3, '#'); put(55, 14, 'F');
+        // mur de 4 cases, tunnel fermé par la grille A, plaque a sur la corniche
+        rect(62, 11, 6, 4, '#'); rect(63, 14, 5, 1, '.'); put(62, 14, 'A'); put(65, 10, 'a'); put(70, 14, 'F');
+        // escalier fantôme (groupe 2) : la plaque b du bas le fait apparaître, la plaque c du haut ouvre la grille C
+        put(74, 14, 'b');
+        [[77, 14], [81, 13], [86, 12], [90, 11], [95, 10]].forEach(([x, r]) => { put(x, r, 'Y'); put(x + 1, r, 'Y'); });
+        rect(99, 9, 20, 1, '#'); put(110, 8, 'c'); rect(114, 10, 1, 5, 'C'); put(120, 14, 'F');
+        // fosse de 22 cases ; la cloche u (4 cases au-dessus du sol) est hors de portée d'un saut simple
+        rect(125, 17, 22, 1, '^'); put(121, 10, 'u'); rect(125, 15, 22, 1, 'M'); put(123, 14, 'F');
+        rect(147, 15, 33, 3, '#'); put(149, 14, 'F');
+        rect(170, 11, 1, 4, 'D'); rect(174, 11, 1, 4, 'D');
+      }, { phys: { gravity: 0.9, jump: -10.5, spring: -15, maxFall: 14 }, bell: { 1: { dur: 250 } } }, [180, 18]),
+
+    make(8, 'Serrures',
+      'Trois salles. D’abord : l’un tient la plaque de la grille pendant que l’autre passe, puis son interrupteur fait apparaître l’escalier pour celui qui reste. Ensuite : un interrupteur ouvre un sas mais dresse un mur de verre ; l’autre interrupteur, tout en haut, l’efface. Enfin, des tapis qui vous ramènent en arrière au-dessus de gouffres.',
+      ({ rect, put }) => {
+        rect(1, 13, 95, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        // salle 1 : plaque a (grille A du tunnel) ; interrupteur y (escalier fantôme Y)
+        put(14, 12, 'a');
+        rect(24, 6, 5, 7, '#'); rect(25, 12, 4, 1, '.'); put(24, 12, 'A');
+        put(17, 11, 'Y'); put(18, 11, 'Y'); put(19, 9, 'Y'); put(20, 9, 'Y'); put(21, 7, 'Y'); put(22, 7, 'Y');
+        put(33, 12, 'y'); put(36, 12, 'F');
+        // salle 2 : z (en bas) bascule le groupe 3 : la grille C s’ouvre, le mur Z se dresse ; z (en haut) l’inverse
+        put(49, 12, 'z'); rect(52, 1, 1, 12, 'C'); put(55, 12, 'F');
+        rect(58, 8, 5, 1, '#'); put(60, 7, 'z');
+        rect(70, 1, 1, 12, 'Z'); put(74, 12, 'F');
+        // salle 3 : tapis vers la gauche au-dessus de fosses
+        rect(96, 13, 76, 3, '#');
+        const belt = (x0, x1) => rect(x0, 13, x1 - x0 + 1, 1, '<');
+        const pit = (x0, x1) => { rect(x0, 13, x1 - x0 + 1, 2, '.'); rect(x0, 15, x1 - x0 + 1, 1, '^'); };
+        belt(96, 110); pit(111, 114); belt(115, 128); pit(129, 132); belt(133, 146); pit(147, 151); belt(152, 160);
+        put(97, 12, 'F'); put(116, 12, 'F'); put(134, 12, 'F'); put(153, 12, 'F');
+        rect(166, 9, 1, 4, 'D'); rect(169, 9, 1, 4, 'D');
+      }, { belt: { speed: 2 } }, [172, 16]),
+
+    make(8, 'Relais',
+      'Les cloches sont trop hautes : saut en chaîne. Chaque coup ouvre une porte ou fait surgir un pont, pour très peu de temps : courez ! Au grand pont, celui qui sonne ne peut pas traverser à temps. Le deuxième passe en premier et sonne la cloche de l’autre rive pour le rappeler.',
+      ({ rect, put }) => {
+        const pillar = (tx, top) => rect(tx, top, 1, 15 - top, '#');
+        rect(1, 13, 67, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        // 1. cloche u (4 cases au-dessus du sol) → mur-porte M, loin devant
+        put(30, 8, 'u'); rect(45, 1, 1, 12, 'M'); put(24, 12, 'F');
+        // 2. fosse de 14 cases ; cloche v au bord → pont N
+        put(62, 8, 'v'); put(57, 12, 'F');
+        rect(68, 13, 14, 3, '.'); rect(68, 15, 14, 1, '^'); rect(68, 13, 14, 1, 'N');
+        // 3. pylônes à 4 cases d’intervalle
+        rect(82, 13, 14, 3, '#'); put(84, 12, 'F');
+        rect(96, 15, 34, 1, '^');
+        [[100, 13], [105, 12], [110, 13], [115, 13], [120, 12], [125, 13]].forEach(([x, t]) => pillar(x, t));
+        put(110, 12, 'F');
+        // 4. grand pont O (22 cases) : ressort T + cloche w à chaque rive
+        rect(130, 13, 16, 3, '#'); put(141, 13, 'T'); put(141, 6, 'w'); put(133, 12, 'F');
+        rect(146, 15, 22, 1, '^'); rect(146, 13, 22, 1, 'O');
+        rect(168, 13, 47, 3, '#'); put(173, 13, 'T'); put(173, 6, 'w'); put(170, 12, 'F');
+        // 5. dernière porte (cloche u derrière nous), puis une fosse de 4 cases
+        put(182, 8, 'u'); rect(195, 1, 1, 12, 'M'); put(180, 12, 'F');
+        rect(199, 13, 4, 3, '.'); rect(199, 15, 4, 1, '^');
+        rect(208, 9, 1, 4, 'D'); rect(211, 9, 1, 4, 'D');
+      }, { bell: { 1: { dur: 165, door: true }, 2: { dur: 205 }, 3: { dur: 235 } } }, [215, 16]),
+
+    make(8, 'Portails croisés',
+      'Des chambres closes, accessibles seulement par portails. Dans la première, l’un tient une plaque : la grille s’ouvre pour l’autre, qui entre dans la seconde chambre et tient sa propre plaque, ce qui ouvre la trappe de la première. Plus loin, deux plaques éloignées dans une grande chambre : tenez-les ensemble, puis ressortez vite et courez jusqu’à la grille.',
+      ({ rect, put }) => {
+        const pillar = (tx, top) => rect(tx, top, 1, 15 - top, '#');
+        rect(1, 13, 125, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        // étage 1 : portail k (sol → chambre 1), grille A, portail l (sol → chambre 2), trappe B
+        put(14, 12, 'k'); put(20, 12, 'F'); rect(30, 1, 1, 12, 'A');
+        rect(36, 3, 13, 7, '#'); rect(37, 4, 11, 5, '.'); put(38, 8, 'k'); put(42, 8, 'a'); put(45, 9, 'B'); put(46, 9, 'B');
+        rect(52, 3, 13, 7, '#'); rect(53, 4, 11, 5, '.'); put(54, 8, 'l'); put(58, 8, 'b');
+        put(68, 12, 'l'); put(74, 12, 'F');
+        // étage 2 : une grande chambre, deux plaques c très éloignées, la grille C se referme vite
+        put(80, 12, 'm');
+        rect(86, 3, 25, 7, '#'); rect(87, 4, 23, 5, '.'); put(89, 8, 'm'); put(93, 8, 'c'); put(107, 8, 'c');
+        rect(120, 1, 1, 12, 'C'); put(118, 12, 'F');
+        // fin : pylônes au-dessus des pics
+        rect(125, 15, 44, 1, '^');
+        [[129, 13], [134, 12], [139, 13], [144, 13], [149, 12], [154, 13], [159, 12], [164, 13]].forEach(([x, t]) => pillar(x, t));
+        put(144, 12, 'F');
+        rect(169, 13, 21, 3, '#'); rect(178, 9, 1, 4, 'D'); rect(181, 9, 1, 4, 'D');
+      }, { latch: { 3: 560 } }, [190, 16]),
+
+    make(8, 'Marée',
+      'Un tunnel d’une case de haut, des tapis qui vous ramènent en arrière, trop rapides pour qu’on avance. Tant que l’un tient la plaque, ils s’inversent et l’autre est emporté jusqu’au bout. Là-bas, il tient la plaque de la grille d’en haut. Le premier peut alors bondir par ressort, passer la grille et courir sur une très longue passerelle de dalles fragiles, au-dessus des pics.',
+      ({ rect, put }) => {
+        rect(1, 13, 214, 3, '#'); put(7, 12, '1'); put(12, 12, '2');
+        // salle de départ
+        rect(14, 1, 1, 11, '#'); put(14, 7, 'B'); rect(6, 8, 8, 1, '#'); put(3, 13, 'T'); put(10, 12, 'a');
+        // tunnel : tapis vers la gauche, toit plein au-dessus
+        rect(14, 8, 145, 4, '#'); rect(14, 13, 145, 1, '<');
+        // passerelle d’en haut : 8 × (sol 3 | fosse 4 | dalles fragiles 6 | sol 3)
+        for (let k = 0; k < 9; k++) {
+          const c0 = 15 + 16 * k;
+          rect(c0 + 3, 8, 4, 2, '.'); rect(c0 + 3, 10, 4, 1, '^');
+          rect(c0 + 7, 8, 6, 1, 'f'); rect(c0 + 7, 9, 6, 1, '.'); rect(c0 + 7, 10, 6, 1, '^');
+        }
+        // salle d’arrivée : plaque b sur une corniche basse, portes
+        rect(162, 11, 3, 1, '#'); put(163, 10, 'b');
+        rect(172, 9, 1, 4, 'D'); rect(175, 9, 1, 4, 'D');
+      }, { belt: { speed: 6, flip: 1 }, frag: { delay: 26, restore: 260 } }, [216, 16]),
+
+    make(9, 'Les quatre épreuves',
+      'Une suite d’épreuves, sans filet : des pylônes à 4 et 5 cases (décollez au dernier pixel), un mur à tunnel en saut en chaîne, deux plaques très éloignées à tenir ensemble pendant que la grille se referme, puis deux interrupteurs qui s’annulent : l’un ouvre le sas mais dresse un mur de verre, l’autre — tout en haut — l’efface.',
+      ({ rect, put }) => {
+        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
+        rect(1, 13, 9, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        // épreuve 1 : pylônes
+        rect(10, 15, 45, 1, '^');
+        [[13, 1, 13], [18, 1, 13], [23, 1, 12], [28, 1, 11], [33, 2, 11], [40, 1, 11], [45, 1, 12], [50, 1, 12]].forEach(([x, w, t]) => pillar(x, w, t));
+        put(28, 10, 'F');
+        rect(55, 13, 28, 3, '#'); put(57, 12, 'F');
+        // épreuve 2 : mur de 5 cases, tunnel (grille A), plaque a sur la corniche
+        rect(66, 8, 6, 5, '#'); rect(67, 12, 5, 1, '.'); put(66, 12, 'A'); put(69, 7, 'a'); put(75, 12, 'F');
+        // épreuve 3 : deux plaques b très éloignées ; la grille B se referme vite
+        rect(83, 15, 29, 1, '^');
+        pillar(86, 2, 13); pillar(91, 1, 13); pillar(96, 2, 12); pillar(102, 1, 11); pillar(107, 1, 12);
+        put(86, 12, 'b'); put(96, 11, 'b'); put(87, 12, 'F');
+        rect(112, 13, 60, 3, '#'); rect(115, 1, 1, 12, 'B'); put(117, 12, 'F');
+        // épreuve 4 : sas à interrupteurs (groupe 3)
+        put(124, 12, 'z'); rect(127, 1, 1, 12, 'C'); put(130, 12, 'F');
+        rect(133, 8, 5, 1, '#'); put(135, 7, 'z');
+        rect(145, 1, 1, 12, 'Z'); put(149, 12, 'F');
+        rect(160, 9, 1, 4, 'D'); rect(163, 9, 1, 4, 'D');
+      }, { latch: { 2: 310 } }, [172, 16]),
+
+    make(9, 'Cordée',
+      'Escalier fantôme : l’un tient la plaque du bas pour que l’autre monte, l’autre tient celle du haut pour ouvrir la grille. Puis une cloche trop haute (saut en chaîne) ouvre une porte pour très peu de temps, une fosse de 5 cases, deux plaques très éloignées à tenir ensemble, et pour finir des pylônes au-dessus des pics.',
+      ({ rect, put }) => {
+        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
+        rect(1, 13, 91, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        // escalier fantôme (groupe 2) ; plaque c (groupe 3) sur la plate-forme, grille C dessous
+        put(12, 12, 'b');
+        put(16, 11, 'Y'); put(17, 11, 'Y'); put(21, 9, 'Y'); put(22, 9, 'Y');
+        rect(27, 7, 20, 1, '#'); put(38, 6, 'c'); rect(42, 8, 1, 5, 'C'); put(49, 12, 'F');
+        // cloche u (4 cases au-dessus du sol) → mur-porte M, loin devant
+        put(62, 8, 'u'); rect(77, 1, 1, 12, 'M'); put(58, 12, 'F');
+        rect(82, 13, 5, 3, '.'); rect(82, 15, 5, 1, '^'); put(88, 12, 'F');
+        // deux plaques a très éloignées ; la grille A se referme
+        rect(92, 13, 29, 3, '.'); rect(92, 15, 29, 1, '^');
+        pillar(95, 2, 13); pillar(100, 1, 13); pillar(105, 2, 12); pillar(111, 1, 11); pillar(116, 1, 12);
+        put(95, 12, 'a'); put(105, 11, 'a'); put(100, 12, 'F');
+        rect(121, 13, 70, 3, '#'); rect(124, 1, 1, 12, 'A'); put(126, 12, 'F');
+        // pylônes finaux
+        rect(136, 13, 40, 3, '.'); rect(136, 15, 40, 1, '^');
+        [[140, 13], [145, 12], [150, 12], [155, 11], [160, 11], [165, 12], [170, 13]].forEach(([x, t]) => pillar(x, 1, t));
+        put(155, 10, 'F');
+        rect(176, 13, 15, 3, '#'); rect(182, 9, 1, 4, 'D'); rect(185, 9, 1, 4, 'D');
+      }, { latch: { 1: 310 }, bell: { 1: { dur: 165, door: true } } }, [191, 16]),
+
+    make(9, 'Apothéose',
+      'Le grand final. Des chambres closes reliées par portails (l’un tient une plaque, l’autre ouvre la trappe), des pylônes jusqu’à 5 cases, le grand pont de 22 cases (celui qui sonne ne peut pas traverser à temps : l’autre passe en premier et sonne de l’autre rive), puis le sas à deux interrupteurs. Tout ce que vous avez appris, d’une traite.',
+      ({ rect, put }) => {
+        const pillar = (tx, top) => rect(tx, top, 1, 15 - top, '#');
+        rect(1, 13, 84, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
+        // 1. chambres closes et portails
+        put(14, 12, 'k'); put(20, 12, 'F'); rect(30, 1, 1, 12, 'A');
+        rect(36, 3, 13, 7, '#'); rect(37, 4, 11, 5, '.'); put(38, 8, 'k'); put(42, 8, 'a'); put(45, 9, 'B'); put(46, 9, 'B');
+        rect(52, 3, 13, 7, '#'); rect(53, 4, 11, 5, '.'); put(54, 8, 'l'); put(58, 8, 'b');
+        put(68, 12, 'l'); put(74, 12, 'F');
+        // 2. pylônes (jusqu’à 5 cases de vide)
+        rect(85, 15, 45, 1, '^');
+        [[89, 13], [94, 13], [99, 12], [104, 11], [110, 11], [115, 12], [120, 12], [125, 13]].forEach(([x, t]) => pillar(x, t));
+        put(104, 10, 'F');
+        // 3. grand pont de 22 cases : ressort + cloche w à chaque rive
+        rect(130, 13, 16, 3, '#'); put(141, 13, 'T'); put(141, 6, 'w'); put(133, 12, 'F');
+        rect(146, 15, 22, 1, '^'); rect(146, 13, 22, 1, 'O');
+        rect(168, 13, 67, 3, '#'); put(173, 13, 'T'); put(173, 6, 'w'); put(170, 12, 'F');
+        // 4. sas à interrupteurs (groupe 3)
+        put(184, 12, 'z'); rect(187, 1, 1, 12, 'C'); put(190, 12, 'F');
+        rect(193, 8, 5, 1, '#'); put(195, 7, 'z');
+        rect(205, 1, 1, 12, 'Z'); put(207, 12, 'F');
+        // 5. dernière fosse (5 cases) puis les portes
+        rect(209, 13, 5, 2, '.'); rect(209, 15, 5, 1, '^');
+        rect(222, 9, 1, 4, 'D'); rect(226, 9, 1, 4, 'D');
+      }, { bell: { 3: { dur: 245 } } }, [235, 16]),
   ];
 
   // Rappel court affiché en haut de l'écran au début de la partie (l'indice complet est dans le menu)
@@ -438,7 +672,17 @@
     'Chacun son couloir : votre interrupteur ouvre la grille de l’autre. Il faudra aussi lever la dernière grille.',
     'La cloche est trop haut : le ressort et un saut en chaîne. Le pont ne dure pas, courez !',
     'Dalles fragiles : on court sans s’arrêter. Le ressort vous jette sur le chemin suspendu.',
-    'Dernier niveau : trois étages à gravir ensemble. Ne vous quittez pas !',
+    'Trois étages à gravir ensemble. Ne vous quittez pas !',
+    'Décollez au dernier pixel : 4 à 5 cases de vide entre pylônes. Deux plaques éloignées : tenez-les ENSEMBLE.',
+    'Faible gravité : on saute très loin. Le mur de 6 cases : saut en chaîne, l’un tient la plaque en haut.',
+    'Gravité lourde : 3 cases de vide au maximum. Escalier fantôme : l’un tient la plaque, l’autre monte.',
+    'Un interrupteur ouvre le sas mais dresse un mur de verre ; l’autre, en haut, l’efface. Une seule pression !',
+    'Le pont ne dure pas : le premier à traverser sonne l’autre rive pour rappeler son partenaire.',
+    'Chambres closes : l’un tient sa plaque, l’autre ouvre la trappe. Sautez par-dessus les portails du chemin !',
+    'Tapis trop rapides : si l’un tient la plaque, ils s’inversent. L’autre, au bout, tient la grille d’en haut.',
+    'Quatre épreuves d’affilée, sans filet. Gardez votre sang-froid.',
+    'Escalier fantôme, cloche haute, deux plaques éloignées, pylônes : en cordée.',
+    'Le grand final : portails, pylônes, grand pont et sas. Tout ce que vous savez.',
   ];
   LEVELS.forEach((l, i) => { l.tip = TIPS[i] || l.hint; });
 

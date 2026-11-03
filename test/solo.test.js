@@ -67,6 +67,18 @@ t('niveau 18 : seul, même depuis le ressort, on ne sonne pas la cloche', () => 
   });
 });
 
+// 2d. Niveaux 21 à 30 : murs, grilles et cloches hautes restent infranchissables seul
+[[21, 86, 90, 'mur 1 (Lune)'], [21, 102, 106, 'mur 2 (Lune)'], [22, 58, 62, 'mur à tunnel (Plomb)'], [23, 20, 24, 'mur de 7 cases (Serrures)'], [27, 62, 66, 'mur à tunnel (4 épreuves)']].forEach(([idx, tx, wallTx, label]) => {
+  t(`niveau ${idx + 1} : seul, on ne passe pas le ${label}`, () => { const r = spam(idx, tx, 6, 1); assert(r.maxX < wallTx * TILE, `x=${r.maxX}`); });
+});
+[[22, 121, 11], [24, 30, 9], [24, 62, 9], [24, 182, 9], [28, 62, 9]].forEach(([idx, tx, ty]) => {
+  t(`niveau ${idx + 1} : seul, on ne sonne pas la cloche haute (${tx},${ty})`, () => { const r = spam(idx, tx, ty, 0, 500); assert(!r.rang); });
+});
+// Serrures : seul, on ne bascule jamais l'interrupteur en haut de la plate-forme (60,7), et le mur du niveau « Portails » ne se passe pas
+t('niveau 24 : seul, on n’atteint pas l’interrupteur de la plate-forme', () => {
+  const r = spam(23, 55, 6, 1, 1500); assert(r.minY > 5 * TILE, `y=${r.minY}`);
+});
+
 // 3. Errance aléatoire, seul : on ne gagne jamais
 function lcg(seed) { let s = seed >>> 0; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); }
 LEVELS.forEach((def, idx) => {

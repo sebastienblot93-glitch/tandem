@@ -38,6 +38,7 @@
   //   x y z  interrupteurs à bascule, groupes 1 2 3 : on les enfonce en marchant dessus, chaque pression change l'état du groupe (ouvre / referme les grilles A B C, souffle les courants P Q R)
   //   P Q R  courants d'air, groupes 1 2 3 : tant que le groupe est actif (plaque tenue ou interrupteur basculé), ils emportent vers le haut
   //   e E    pics rythmés : sortis pendant la phase A (e) ou B (E) de cfg.rspike, rentrés le reste du temps (inoffensifs)
+  //   (cfg.phys : gravity, jump, spring, speed, maxFall — la physique propre à un niveau)
   //   r s    blocs « rythme » : r présent pendant la 1re moitié de la période, s pendant la 2e (cfg.rhythm)
   const GROUP = (ch, set) => set.indexOf(ch) + 1;
 
@@ -50,6 +51,7 @@
     const L = {
       name: def.name, rows, cfg, def, cols: NC, nr: NR, w: NC * TILE, h: NR * TILE,
       spring: new Uint8Array(n), vent: new Uint8Array(n), hasVent: false, ventGroups: [0, 0, 0, 0], conv: new Int8Array(n), oneway: new Uint8Array(n), fragAt: new Uint8Array(n), frags: [], portals: [], hasOneway: false,
+      phys: Object.assign({}, PHYS, cfg.phys || {}),
       frag: Object.assign({}, DEFAULT_FRAG, cfg.frag || {}), belt: Object.assign({}, DEFAULT_BELT, cfg.belt || {}),
       base: new Uint8Array(n), gateG: new Uint8Array(n), inv: new Uint8Array(n), bridgeG: new Uint8Array(n), bellAt: new Uint8Array(n),
       rhA: new Uint8Array(n), rhB: new Uint8Array(n), dynCells: [],
@@ -326,6 +328,7 @@
   }
 
   function stepPlayer(G, i, inp) {
+    const P = G.L.phys;
     const p = G.players[i];
     if (p.dead) { p.dead--; if (p.dead === 0) respawn(G, i); return; }
     if (inp.k) { recall(G, i); return; }
@@ -335,19 +338,19 @@
     }
     const dir = (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
     if (dir) p.face = dir;
-    if (dir) moveX(G, i, dir * PHYS.speed);
+    if (dir) moveX(G, i, dir * P.speed);
 
-    if (inp.j) p.jumpBuf = PHYS.buffer;
-    if (p.onGround) p.coyote = PHYS.coyote; else if (p.coyote > 0) p.coyote--;
+    if (inp.j) p.jumpBuf = P.buffer;
+    if (p.onGround) p.coyote = P.coyote; else if (p.coyote > 0) p.coyote--;
     if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
       const boost = p.onGround && cellsUnder(G, p, G.L.spring) > 0;
-      p.vy = boost ? PHYS.spring : PHYS.jump; p.jumpBuf = 0; p.coyote = 0; p.onGround = false;
+      p.vy = boost ? P.spring : P.jump; p.jumpBuf = 0; p.coyote = 0; p.onGround = false;
       emit(G, 'jump', i, boost ? 1 : 0);
     } else if (p.jumpBuf > 0) p.jumpBuf--;
 
     const wasAir = !p.onGround;
     const vyBefore = p.vy;
-    p.vy = Math.min(p.vy + PHYS.gravity, PHYS.maxFall);
+    p.vy = Math.min(p.vy + P.gravity, P.maxFall);
     if (G.L.hasVent && inVent(G, p) && p.vy > -VENT.max) p.vy = Math.max(p.vy - VENT.lift, -VENT.max);
     p.onGround = false;
     moveY(G, i, p.vy);

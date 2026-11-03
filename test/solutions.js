@@ -1097,4 +1097,7 @@ S[19] = [
   },
 ];
 
+// ---- Niveaux 21 et suivants : voir solutions2.js ----
+Object.defineProperty(S, 'H', { enumerable: false, value: { ring, leap, standAt, mountAt, chainLow, chainTopRing, stones14, crossBed, springLeap, springUp, leapL, at90 } });
+require('./solutions2')(S, S.H);
 module.exports = S;

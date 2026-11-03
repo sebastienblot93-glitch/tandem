@@ -51,7 +51,7 @@ npm start       # http://localhost:3000
 
 Un bloc mobile n'apparaît jamais sur un joueur. L'idée centrale : **un frappe, l'autre agit** (relais, attente au bord, rôles inversés).
 
-## Niveaux (20, sept chapitres — de 30 à 110 cases de long)
+## Niveaux (30, dix chapitres — de 30 à 235 cases de long)
 
 1. **Duo** — Courte-échelle (mur de 3, fosse, mur de 4) · Verrous croisés (deux couloirs, grilles qui se referment) · Marches fantômes (escalier qui n'existe que si l'autre tient la plaque)
 2. **Cloches** — Première cloche (relais de ponts) · Les sas (cloches qui ouvrent des murs) · Le clocher (tour de 30 cases, escaliers éphémères)
@@ -59,7 +59,13 @@ Un bloc mobile n'apparaît jamais sur un joueur. L'idée centrale : **un frappe,
 4. **Cadence** — Chambre forte (portails, porte-plaque) · Pulsations (pierres à 4 cases d'écart) · Métronome (tapis, mur de 6 cases, pierres rapides, cloche)
 5. **Souffle** (décor glacé) — Premier souffle (courant tenu par la plaque, courant de l'interrupteur) · Cloches d'altitude (cloches à 8 cases de haut) · Ascenseur (tour de trois étages)
 6. **Mécanismes** (décor de ruines) — Allée des pics (tunnels trop bas, pics rythmés) · Prêts ? Partez ! (deux plaques éloignées à tenir ensemble, grilles qui se referment vite) · Chacun son couloir (deux couloirs superposés, interrupteurs croisés)
-7. **Cosmos** (décor spatial) — Orbite (cloche à 9 cases : ressort + saut en chaîne, pont qui ne dure pas, tunnel de pics, fosse au ressort, second champ de pierres) · Funambules (long pont de verre, ressort vers un chemin suspendu au-dessus du vide, deux murs en chaîne) · Tandem (finale, 140×22 : ascension en trois étages — pierres, courant partagé, pics et tunnel rythmé, long pont de verre, ressort, dernières pierres)
+7. **Cosmos** (décor spatial) — Orbite (cloche à 9 cases : ressort + saut en chaîne, pont qui ne dure pas, tunnel de pics, fosse au ressort, second champ de pierres) · Funambules (long pont de verre, ressort vers un chemin suspendu au-dessus du vide, deux murs en chaîne) · Tandem (140×22 : ascension en trois étages — pierres, courant partagé, pics et tunnel rythmé, long pont de verre, ressort, dernières pierres)
+
+8. **Précision** (décor de forge) — Pylônes (pylônes d'une case à 4–5 cases d'écart, deux plaques lointaines à tenir ensemble) · Lune (*gravité faible* : sauts de 7 cases, murs de 5–6 en chaîne avec tunnel, plaques lointaines) · Plomb (*gravité lourde* : 3 cases de vide au plus, mur à tunnel, escalier fantôme, cloche à 4 cases et pont de 250 ticks)
+9. **Casse-têtes** (décor arcane) — Serrures (plaque + tunnel + escalier fantôme, sas à interrupteurs qui s'annulent, tapis à contresens au-dessus de fosses) · Relais (cloches en chaîne, portes éphémères, grand pont de 22 cases : celui qui sonne ne peut pas traverser, l'autre passe d'abord et sonne de l'autre rive) · Portails croisés (chambres closes : l'un tient la plaque, l'autre ouvre la trappe ; grande chambre à deux plaques éloignées) · Marée (tunnel d'une case où des tapis trop rapides ne s'inversent que si l'un tient la plaque, longue passerelle de dalles fragiles au-dessus des pics)
+10. **Maîtrise** (décor de ciel) — Les quatre épreuves (pylônes, mur à tunnel, deux plaques lointaines, sas à interrupteurs) · Cordée (escalier fantôme, cloche haute et porte éphémère, fosse de 5 cases, plaques lointaines, pylônes) · Apothéose (portails, pylônes, grand pont, sas : le final)
+
+Chaque niveau 21–30 dure **30 à 45 secondes** même pour les bots (marge des minuteries : minimum mesuré + 30 à 120 ticks). Un niveau peut avoir sa propre physique : `phys` (`gravity`, `jump`, `spring`, `speed`, `maxFall`).
 
 Marges mesurées (ticks à 60 Hz) du saut en chaîne : corniche de 4 cases = 23 ticks, 5 = 19, 6 = 11, 7 = impossible.
 Les plateformes « à sens unique » (`=`) existent dans le moteur mais aucun niveau ne les utilise pour l'instant. Un groupe ne peut pas mélanger plaques et interrupteurs, et un niveau compte 3 groupes au maximum.
@@ -69,7 +75,7 @@ Les plateformes « à sens unique » (`=`) existent dans le moteur mais aucun ni
 ```
 server.js              serveur http statique + WebSocket, salles, boucle 60 Hz autoritaire
 public/shared/sim.js   moteur déterministe (navigateur + serveur + tests), niveaux de taille variable
-public/shared/levels.js les 20 niveaux (légende en tête de sim.js)
+public/shared/levels.js les 30 niveaux (légende en tête de sim.js)
 public/render.js       dessin canvas, personnages (ourson / chaton), caméra dynamique   public/audio.js  sons synthétisés
 public/scenery.js      décors par chapitre : ciel, collines en parallaxe, ambiance animée, tuiles et accessoires
 public/game.js         menus, mode local, mode en ligne
@@ -77,7 +83,7 @@ test/                  physique, solutions de chaque niveau jouées par deux « 
 ```
 
 Tests : `npm test` (le test réseau a besoin du module `ws`, donc de `npm install`).
-`node test/levels.test.js 19 --map` rejoue la solution du niveau 20 et affiche la carte.
+`node test/levels.test.js 29 --map` rejoue la solution du niveau 30 et affiche la carte.
 
 ## Créer un niveau
 
@@ -86,7 +92,7 @@ Légende : `#` mur · `1`/`2` départs · `D` porte (2 portes exactement, non co
 `a b c` plaques / `A B C` grilles / `X Y Z` marches fantômes · `u v w` cloches / `M N O` ponts (ou murs-portes) ·
 `r` `s` pierres pulsantes · `x y z` interrupteurs à bascule · `P Q R` courants d'air · `e` `E` pics rythmés (phase A / B) · `T` tremplin · `<` `>` tapis · `f` dalle de verre · `=` sens unique · `k l m` portails (2 par lettre) · `G H I` porte + plaque.
 Config : `latch` (délai de fermeture des grilles), `bell` (`{ 1: { dur: ticks, door: true|false } }`), `rhythm` (`period`, `on`),
-`belt` (`speed`, `flip`), `rspike` (`period`, `on`), `frag` (`delay`, `restore`), `zoom` (zoom maximal de la caméra).
+`belt` (`speed`, `flip`), `rspike` (`period`, `on`), `frag` (`delay`, `restore`), `zoom` (zoom maximal de la caméra), `phys` (physique propre au niveau : `gravity`, `jump`, `spring`, `speed`, `maxFall`).
 Repère : une cloche à 3 lignes au-dessus du sol se frappe seul ; à 4 lignes, il faut une courte-échelle.
 Écrivez ensuite une solution dans `test/solutions.js` : si deux bots n'arrivent pas aux portes avec seulement ← → ↑, le niveau n'est pas bon.
 
