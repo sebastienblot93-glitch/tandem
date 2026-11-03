@@ -15,8 +15,10 @@
   /* ---------- Progression (facultative : le stockage peut être indisponible) ---------- */
   let done = {};
   try { done = JSON.parse(localStorage.getItem('tandem.done') || '{}') || {}; } catch (e) { done = {}; }
+  let lastRecord = null;                               // résultat du dernier niveau : { level, prev (ticks ou null), isNew }
   function saveDone(level, ticks, deaths) {
     const old = done[level];
+    lastRecord = { level, prev: old ? old.ticks : null, isNew: !!old && ticks < old.ticks, first: !old };
     if (!old || ticks < old.ticks) done[level] = { ticks, deaths };
     try { localStorage.setItem('tandem.done', JSON.stringify(done)); } catch (e) { /* ignore */ }
   }
@@ -36,6 +38,7 @@
   };
   let jumpQ = [0, 0], kQ = [0, 0], cQ = 0;
   let demoG = null;
+  let version = '';
   const online = location.protocol === 'http:' || location.protocol === 'https:';
 
   const notify = (m, ms = 3200) => { S.msg = m; S.msgT = performance.now() + ms; };
@@ -45,7 +48,7 @@
   /* ---------- Dimensionnement ---------- */
   function resize() {
     const wrap = document.getElementById('wrap');
-    const availW = wrap.clientWidth, availH = window.innerHeight - 90;
+    const availW = wrap.clientWidth, availH = window.innerHeight - (document.fullscreenElement ? 8 : 90);
     const cssW = Math.max(320, Math.min(availW, availH * 2));
     const dpr = window.devicePixelRatio || 1;
     const px = Math.max(480, Math.round(cssW * dpr / 160) * 160);
@@ -77,13 +80,18 @@
     let ws;
     try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host); } catch (e) { notify('Connexion impossible.'); S.connecting = false; return; }
     S.ws = ws;
-    ws.onopen = () => { S.connecting = false; wsSend(firstMsg); pingLoop(ws); };
+    const wake = setTimeout(() => { if (S.ws === ws && S.connecting) notify('Le serveur se réveille… patientez, ça peut prendre une minute.', 60000); }, 3000);
+    const giveUp = setTimeout(() => { if (S.ws === ws && S.connecting) toTitle('Le serveur ne répond pas. Réessayez dans un instant.'); }, 70000);
+    ws.onopen = () => {
+      clearTimeout(wake); clearTimeout(giveUp); ws.__opened = true; S.connecting = false; wsSend(firstMsg); pingLoop(ws);
+      if (S.msg && S.msg.startsWith('Le serveur se réveille')) S.msgT = 0;
+    };
     ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onNet(m); };
     ws.onerror = () => {};
     ws.onclose = () => {
       if (S.ws !== ws) return;
-      S.ws = null; S.connecting = false;
-      if (S.mode === 'online' || S.screen === 'code') toTitle('Connexion au serveur perdue.');
+      clearTimeout(wake); clearTimeout(giveUp); S.ws = null; S.connecting = false;
+      if (S.mode === 'online' || S.screen === 'code') toTitle(ws.__opened ? 'Connexion au serveur perdue.' : 'Connexion impossible.');
     };
   }
   function pingLoop(ws) {
@@ -329,6 +337,8 @@
       }
       if (S.mode === 'online') syncInputs();
     }
+    if (e.code === 'KeyM') { Sfx.enabled = !Sfx.enabled; if (Sfx.enabled) Sfx.play('ok'); notify('Son : ' + (Sfx.enabled ? 'oui' : 'non'), 1400); return; }
+    if (e.code === 'KeyF') { toggleFullscreen(); return; }
     if (emoOk()) {                                            // émoticônes
       const em = /^(?:Digit|Numpad)([1-8])$/.exec(e.code);
       if (e.code === 'KeyE') { S.emoBar = S.emoBar ? 0 : performance.now() + 5000; Sfx.play('menu'); return; }
@@ -359,6 +369,14 @@
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => { dn.a.fill(0); dn.z.fill(0); syncInputs(); });
+
+  function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => notify('Plein écran indisponible.', 1800));
+    } catch (e) { /* ignore */ }
+  }
+  document.addEventListener('fullscreenchange', () => { document.body.classList.toggle('fs', !!document.fullscreenElement); resize(); });
 
   function typeCode(ch) {
     if (S.codeIn.length >= 4 || S.connecting) return;
@@ -592,6 +610,7 @@
 
   function drawTitle(now) {
     background('arcane', 0.55);
+    if (version) text('v' + version, 10, H - 12, 11, DIM, 'left', { bold: false });
     const bob = Math.sin(now / 500) * 4;
     // deux petits personnages
     for (let i = 0; i < 2; i++) {
@@ -760,7 +779,7 @@
       text(tipText, W / 2, 47, 15, INK, 'center');
       c.globalAlpha = 1;
     }
-    if (S.msg && performance.now() < S.msgT) { panel(W / 2 - 190, H - 52, 380, 34, 'rgba(10,6,24,.85)'); text(S.msg, W / 2, H - 35, 15, GOLD, 'center'); }
+    if (S.screen === 'play' && S.msg && performance.now() < S.msgT) { panel(W / 2 - 190, H - 52, 380, 34, 'rgba(10,6,24,.85)'); text(S.msg, W / 2, H - 35, 15, GOLD, 'center'); }
     if (S.practice && !S.overlay) {                           // barre d'outils d'entraînement (souris ou touches)
       const y = H - 36, bw = (x, w, label, cb, hot) => {
         const hov = over(x, y, w, 26);
@@ -880,8 +899,12 @@
     text(S.practice ? 'Entraînement terminé !' : 'Niveau réussi !', W / 2, 96, S.practice ? 40 : 50, GOLD, 'center', { pix: true, shadow: true });
     text(`${S.level + 1}. ${LEVELS[S.level].name}`, W / 2, 148, 22, INK, 'center');
     text(S.practice ? `Chutes ${G.deaths}  ·  rien n’est enregistré` : `Temps ${fmtTime(G.t)}      Chutes ${G.deaths}`, W / 2, 188, 24, '#fff', 'center');
-    const best = done[S.level];
-    if (best && !S.practice) text(`Record : ${fmtTime(best.ticks)}`, W / 2, 222, 16, DIM, 'center', { bold: false });
+    const best = done[S.level], lr = lastRecord && lastRecord.level === S.level ? lastRecord : null;
+    if (best && !S.practice) {
+      if (lr && lr.isNew) text(`★ Nouveau record !  (avant : ${fmtTime(lr.prev)})`, W / 2, 222, 17, '#8ef0b4', 'center');
+      else if (lr && lr.first) text('★ Première réussite de ce niveau', W / 2, 222, 16, '#8ef0b4', 'center', { bold: false });
+      else text(`Record : ${fmtTime(best.ticks)}`, W / 2, 222, 16, DIM, 'center', { bold: false });
+    }
     const last = S.level + 1 >= LEVELS.length;
     const opts = [[0, last ? 'Terminer (retour aux niveaux)' : 'Niveau suivant'], [1, 'Rejouer'], [2, 'Retour aux niveaux']];
     const acts = [doNext, doRestart, doLobby];
@@ -970,9 +993,10 @@
   }
 
   // Accès de test / débogage (facultatif)
-  window.__tandem = { S, startLocal, onPress, dn };
+  window.__tandem = { S, startLocal, onPress, dn, saveDone };
 
   applyColors();
   resize();
+  if (online) { try { fetch('/healthz', { cache: 'no-store' }).then((r) => r.json()).then((j) => { if (j && j.version) version = String(j.version); }).catch(() => {}); } catch (e) { /* ignore */ } }
   requestAnimationFrame(frame);
 })();

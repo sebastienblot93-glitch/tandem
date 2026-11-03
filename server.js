@@ -12,6 +12,9 @@ const TICK_MS = 1000 / 60;
 const MAX_ROOMS = 500;
 const MAX_MSG = 2048;
 
+let VERSION = '?';
+try { VERSION = require('./package.json').version; } catch { /* ignore */ }
+
 // Fichiers statiques (le dossier public/) sans dépendance : index.html, game.js, shared/sim.js…
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = {
@@ -24,7 +27,7 @@ function handleHttp(req, res) {
   try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); } catch { res.writeHead(400, headers); return res.end('Requête invalide'); }
   if (pathname === '/healthz') {
     res.writeHead(200, Object.assign({ 'Content-Type': 'application/json' }, headers));
-    return res.end(JSON.stringify({ ok: true, rooms: rooms.size, levels: LEVELS.length }));
+    return res.end(JSON.stringify({ ok: true, version: VERSION, rooms: rooms.size, levels: LEVELS.length }));
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, headers); return res.end(); }
   if (pathname.endsWith('/')) pathname += 'index.html';

@@ -37,6 +37,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const a = client(port), b = client(port);
   await Promise.all([a.open, b.open]);
 
+  // /healthz : version et nombre de niveaux
+  const health = await new Promise((res, rej) => require('http').get(`http://localhost:${port}/healthz`, (r) => { let d = ''; r.on('data', (x) => (d += x)); r.on('end', () => res(JSON.parse(d))); }).on('error', rej));
+  assert.strictEqual(health.version, require('../package.json').version); assert.strictEqual(health.levels, LEVELS.length); step(`/healthz : version ${health.version}, ${health.levels} niveaux`);
+
   // code invalide / salle inexistante
   b.send({ t: 'join', code: '1234' }); assert.strictEqual((await b.waitFor('err')).t, 'err'); step('code invalide refusé');
   b.send({ t: 'join', code: 'BCDFG' }); assert((await b.waitFor('err')).m); step('code trop long refusé');
