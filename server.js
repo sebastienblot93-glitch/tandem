@@ -44,6 +44,7 @@ const wss = new WebSocketServer({ server, maxPayload: MAX_MSG });
 /** @type {Map<string, any>} */
 const rooms = new Map();
 
+const CHAT_MAX = 120, CHAT_RATE = 5, CHAT_WIN = 6000;      // messages : 120 caractères, 5 par 6 s
 // Le code d'une salle : 4 lettres (consonnes seulement : pas de mots, pas de confusion), ex. « KRTB »
 const CODE_LETTERS = 'BCDFGHJKLMNPRSTVWXZ';
 function newCode() {
@@ -197,6 +198,18 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'k': if (room && room.state === 'play') room.kQ[ws.slot] = 1; break; // retour au dernier drapeau
+
+      case 'chat': { // message écrit : nettoyé, limité en longueur et en cadence, relayé aux deux joueurs
+        if (!room || room.players.length < 2) return;
+        const txt = String(m.m == null ? '' : m.m).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+        if (!txt) return;
+        const now = Date.now();
+        ws.chatT = (ws.chatT || []).filter((t) => now - t < CHAT_WIN);
+        if (ws.chatT.length >= CHAT_RATE) return send(ws, { t: 'err', m: 'Doucement : trop de messages à la suite.' });
+        ws.chatT.push(now);
+        toRoom(room, { t: 'chat', m: txt, from: ws.slot });
+        break;
+      }
       default: break;
     }
   });

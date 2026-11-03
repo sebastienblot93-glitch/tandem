@@ -24,6 +24,7 @@ npm start       # http://localhost:3000
 - **Couleurs** : menu « Couleurs des personnages » (titre) ou bouton « Couleurs » dans le choix des niveaux. 8 couleurs, deux joueurs ne peuvent pas avoir la même. En ligne, chacun choisit la sienne et l'autre la voit tout de suite. Le choix est mémorisé dans le navigateur.
 - **En ligne** : l'hôte crée une salle et donne le code (4 lettres, ex. `KRTB`) à l'autre joueur, qui choisit « Rejoindre »
   (il tape les lettres au clavier, sans tenir compte des majuscules, ou clique sur le petit clavier à l'écran). L'hôte choisit et lance les niveaux.
+- **Chat écrit** (en ligne, une fois le partenaire présent) : **Tab** ouvre la saisie (pendant une partie, **Entrée** aussi), **Entrée** envoie, **Échap** annule. Pendant la saisie les touches ne font pas bouger le personnage. Les messages (120 caractères max, couleur de l'auteur) s'affichent en petit, semi-transparents, en bas à droite, et s'effacent seuls après 8 s ; ils ne prennent jamais le focus des commandes. Le serveur nettoie le texte et limite la cadence (5 messages par 6 s).
 - **En local** (même clavier) : joueur 1 = flèches ; joueur 2 = Z Q D.
 - Déploiement (Render, etc.) : `npm install` puis `npm start` ; le port vient de la variable `PORT`.
   Le serveur sert aussi les fichiers du jeu. `GET /healthz` pour la supervision.

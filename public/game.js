@@ -32,6 +32,7 @@
     screen: 'title', menu: 0, mode: null, sel: 0, level: 0, G: null, you: 0, host: true,
     code: '', codeIn: '', count: 1, ws: null, msg: '', msgT: 0, ping: -1, mx: -1, my: -1,
     hd: [0, 0], practice: false, speed: 1, overlay: false, colors: prefs.slice(), row: 0, prev: 'title', confirmT: 0, shake: 0, lastIn: '', connecting: false, resultShown: false,
+    chat: [], typing: false, draft: '', chatHint: 0,
   };
   let jumpQ = [0, 0], kQ = [0, 0], cQ = 0;
   let demoG = null;
@@ -62,6 +63,7 @@
   }
   function toTitle(message) {
     closeWs();
+    S.chat = []; S.typing = false; S.draft = '';
     S.screen = 'title'; S.mode = null; S.G = null; S.overlay = false; S.hd = [0, 0]; S.codeIn = ''; S.code = '';
     S.colors = prefs.slice(); applyColors();
     FX().clear();
@@ -103,14 +105,15 @@
         S.colors = m.colors.slice(); applyColors();
         if (m.from === S.you && !m.ok) { prefs[0] = S.colors[S.you]; savePrefs(); Sfx.play('error'); notify('Cette couleur est déjà prise par votre partenaire.'); }
         break;
-      case 'peer': if (m.colors) { S.colors = m.colors.slice(); applyColors(); } S.count = 2; if (S.screen === 'wait') { S.screen = 'select'; Sfx.play('ok'); notify('Votre partenaire est là !'); } break;
+      case 'peer': if (m.colors) { S.colors = m.colors.slice(); applyColors(); } S.count = 2; if (S.screen === 'wait') { S.screen = 'select'; Sfx.play('ok'); notify('Votre partenaire est là !  (Tab : discuter par écrit)', 4200); } break;
       case 'peerLeft':
         S.count = 1; S.you = 0; S.host = true; S.code = m.code; S.sel = m.level || 0; S.G = null; S.overlay = false;
         if (m.colors) { S.colors = m.colors.slice(); applyColors(); }
-        S.screen = 'wait'; notify('Votre partenaire est parti.'); break;
+        S.typing = false; S.draft = ''; S.screen = 'wait'; notify('Votre partenaire est parti.'); break;
       case 'sel': S.sel = m.level; if (!S.host) Sfx.play('menu'); break;
       case 'start': startOnline(m.level, m.practice); break;
       case 'speed': S.speed = m.v; break;
+      case 'chat': addChat(m.from, String(m.m || '')); if (m.from !== S.you) Sfx.play('menu'); break;
       case 'lobby': S.screen = 'select'; S.sel = m.level; S.G = null; S.overlay = false; FX().clear();
         if (m.by !== undefined && m.by >= 0 && m.by !== S.you) notify('Votre partenaire est revenu au choix des niveaux.');
         break;
@@ -249,7 +252,41 @@
     S.lastIn = s; wsSend({ t: 'in', l: i.l, r: i.r });
   }
 
+
+  /* ---------- Chat écrit (en ligne) : Tab pour écrire, Entrée envoie, Échap annule ---------- */
+  const CHAT_MAX = 120, CHAT_SHOW = 8000, CHAT_FADE = 1200, CHAT_W = 270;
+  const chatOk = () => S.mode === 'online' && S.count >= 2 && ['select', 'colors', 'play', 'result'].includes(S.screen);
+  function addChat(from, txt) {
+    S.chat.push({ from: from === 1 ? 1 : 0, txt, t: performance.now() });
+    if (S.chat.length > 8) S.chat.shift();
+  }
+  function chatOpen() {
+    if (!chatOk() || S.typing) return;
+    S.typing = true; S.draft = ''; dn.a.fill(0); dn.z.fill(0); syncInputs(true); Sfx.play('menu');
+  }
+  function chatClose(send) {
+    if (send) { const t = S.draft.replace(/\s+/g, ' ').trim(); if (t) wsSend({ t: 'chat', m: t }); }
+    S.typing = false; S.draft = ''; dn.a.fill(0); dn.z.fill(0); syncInputs(true);
+  }
+  function chatKey(e) {                                      // pendant la saisie, toutes les touches vont dans le message
+    if (e.code === 'Escape') chatClose(false);
+    else if (e.code === 'Enter' || e.code === 'NumpadEnter') { chatClose(true); Sfx.play('ok'); }
+    else if (e.code === 'Tab') chatClose(false);
+    else if (e.code === 'Backspace') S.draft = S.draft.slice(0, -1);
+    else if (e.key && e.key.length === 1 && !e.metaKey && (!e.ctrlKey || e.altKey) && S.draft.length < CHAT_MAX) S.draft += e.key;
+    else if (e.ctrlKey && !e.altKey) return;                  // laisse passer Ctrl+V (collage), Ctrl+R…
+    e.preventDefault();
+  }
+  window.addEventListener('paste', (e) => {
+    if (!S.typing) return;
+    const t = ((e.clipboardData && e.clipboardData.getData('text')) || '').replace(/\s+/g, ' ');
+    S.draft = (S.draft + t).slice(0, CHAT_MAX); e.preventDefault();
+  });
+
   function onKeyDown(e) {
+    if (S.typing) { if (!chatOk()) { S.typing = false; S.draft = ''; } else { Sfx.unlock(); chatKey(e); return; } }
+    if (e.code === 'Tab' && S.mode === 'online') { e.preventDefault(); if (!e.repeat) chatOpen(); return; }
+    if (e.code === 'Enter' && !e.repeat && S.screen === 'play' && chatOk()) { e.preventDefault(); chatOpen(); return; }
     if (S.screen === 'code' && !e.ctrlKey && !e.metaKey && !e.altKey && /^[a-zA-Z]$/.test(e.key || '')) {   // saisie du code : lettres du clavier
       e.preventDefault(); Sfx.unlock(); if (!e.repeat) typeCode(e.key.toUpperCase()); return;
     }
@@ -827,6 +864,62 @@
     if (last) text('Vous avez fini tous les niveaux. Bravo, à deux !', W / 2, 450, 16, '#8ef0b4', 'center');
   }
 
+
+  /* ---------- Chat : messages discrets en bas à droite, qui s'effacent seuls ---------- */
+  function drawChat(now) {
+    if (S.mode !== 'online') return;
+    if (S.typing && !chatOk()) { S.typing = false; S.draft = ''; }
+    const typing = S.typing, X = W - 10 - CHAT_W;
+    let base = S.screen === 'play' ? H - 12 : H - 48;      // en menu : au-dessus de la rangée de boutons
+    if (S.screen === 'play' && S.practice) base = H - 44;
+    if (typing) base = H - 44;
+    c.save();
+    const rows = [];
+    for (const m of S.chat) {
+      const age = now - m.t;
+      const a = typing ? (age < 40000 ? 1 : 0) : age < CHAT_SHOW ? 1 : age < CHAT_SHOW + CHAT_FADE ? 1 - (age - CHAT_SHOW) / CHAT_FADE : 0;
+      if (a > 0) rows.push({ m, a });
+    }
+    let y = base;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const { m, a } = rows[i];
+      const who = Render.P_COL[m.from], name = who.name + ' : ';
+      c.font = font(13, true); const nw = c.measureText(name).width;
+      c.font = font(13, false);
+      const lines = []; let cur = '';
+      for (const w of m.txt.split(' ')) {                     // retour à la ligne (le 1er mot suit le nom)
+        const t = cur ? cur + ' ' + w : w, lim = CHAT_W - 16 - (lines.length ? 0 : nw);
+        if (c.measureText(t).width > lim && cur) { lines.push(cur); cur = w; } else cur = t;
+      }
+      lines.push(cur);
+      const h = lines.length * 17 + 8;
+      y -= h;
+      if (y < 70) break;
+      c.globalAlpha = 0.78 * a; c.fillStyle = 'rgba(8,5,20,.8)'; rrect(X, y, CHAT_W, h, 9); c.fill();
+      c.fillStyle = who.main; c.fillRect(X, y + 4, 3, h - 8);
+      c.globalAlpha = a;
+      lines.forEach((ln, k) => {
+        if (k === 0) { text(name, X + 10, y + 4 + 8.5, 13, who.main, 'left'); text(ln, X + 10 + nw, y + 4 + 8.5, 13, INK, 'left', { bold: false }); }
+        else text(ln, X + 10, y + 4 + 8.5 + k * 17, 13, INK, 'left', { bold: false });
+      });
+      y -= 4;
+    }
+    c.globalAlpha = 1;
+    if (typing) {
+      const me = Render.P_COL[S.you], by = H - 38, h = 26;
+      c.fillStyle = 'rgba(8,5,20,.92)'; rrect(X, by, CHAT_W, h, 9); c.fill();
+      c.strokeStyle = me.main; c.lineWidth = 2; rrect(X, by, CHAT_W, h, 9); c.stroke();
+      c.font = font(13, false);
+      let shown = S.draft;
+      while (shown.length > 1 && c.measureText(shown).width > CHAT_W - 34) shown = shown.slice(1);
+      const caret = Math.floor(now / 450) % 2 === 0 ? '▏' : '';
+      text(shown + caret, X + 10, by + h / 2, 13, INK, 'left', { bold: false });
+      if (!S.draft) text('Votre message…  (Entrée : envoyer · Échap : annuler)', X + 10, by + h / 2, 11, DIM, 'left', { bold: false });
+      else if (S.draft.length > CHAT_MAX - 25) text(`${CHAT_MAX - S.draft.length}`, X + CHAT_W - 8, by + h / 2, 11, GOLD, 'right');
+    }
+    c.restore();
+  }
+
   function render(now) {
     c.setTransform(scale(), 0, 0, scale(), 0, 0);
     c.clearRect(0, 0, W, H);
@@ -842,6 +935,7 @@
       default: break;
     }
     c.setTransform(scale(), 0, 0, scale(), 0, 0);
+    drawChat(now);
     if (S.screen !== 'play' && S.msg && now < S.msgT) { panel(W / 2 - 250, 8, 500, 34, 'rgba(10,6,24,.9)'); text(S.msg, W / 2, 25, 15, GOLD, 'center'); }
   }
 

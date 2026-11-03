@@ -151,6 +151,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   b.send({ t: 'c' }); await sleep(300); assert(!a.G.custom); step('hors entraînement : le point de retour est ignoré');
   b.send({ t: 'lobby' }); await a.waitFor('lobby');
 
+  // chat écrit : relayé aux deux, nettoyé, tronqué, limité en cadence
+  a.send({ t: 'chat', m: '  Salut   toi \u0007 ! ' });
+  const c1 = await a.waitFor('chat'), c2 = await b.waitFor('chat');
+  assert.deepStrictEqual([c1.m, c1.from, c2.m, c2.from], ['Salut toi !', 0, 'Salut toi !', 0]); step('chat : message nettoyé et reçu par les deux, avec l’auteur');
+  b.send({ t: 'chat', m: 'x'.repeat(500) }); assert.strictEqual((await a.waitFor('chat')).m.length, 120); await b.waitFor('chat'); step('chat : message tronqué à 120 caractères');
+  a.send({ t: 'chat', m: '   ' }); a.send({ t: 'chat' }); await sleep(120); assert(!a.q.some((m) => m.t === 'chat') && !b.q.some((m) => m.t === 'chat')); step('chat : message vide ignoré');
+  for (let i = 0; i < 8; i++) b.send({ t: 'chat', m: 'spam ' + i });
+  await sleep(250);
+  const gotSpam = a.q.filter((m) => m.t === 'chat').length; assert(gotSpam >= 2 && gotSpam <= 4, 'spam relayé : ' + gotSpam);
+  assert(b.q.some((m) => m.t === 'err')); a.q.length = 0; b.q.length = 0; step(`chat : anti-spam (${gotSpam + 1} messages passés sur 9, le reste refusé)`);
+
   // départ d'un joueur
   b.ws.close(); const left = await a.waitFor('peerLeft'); assert.strictEqual(left.you, 0); assert.strictEqual(rooms.size, 1); step('départ du partenaire géré');
   a.ws.close(); await sleep(100); assert.strictEqual(rooms.size, 0); step('salle supprimée quand tout le monde est parti');
