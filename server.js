@@ -44,11 +44,12 @@ const wss = new WebSocketServer({ server, maxPayload: MAX_MSG });
 /** @type {Map<string, any>} */
 const rooms = new Map();
 
-// Le code d'une salle est une suite de 4 flèches : 0 = ↑, 1 = →, 2 = ↓, 3 = ←
+// Le code d'une salle : 4 lettres (consonnes seulement : pas de mots, pas de confusion), ex. « KRTB »
+const CODE_LETTERS = 'BCDFGHJKLMNPRSTVWXZ';
 function newCode() {
   for (let k = 0; k < 200; k++) {
     let c = '';
-    for (let i = 0; i < 4; i++) c += Math.floor(Math.random() * 4);
+    for (let i = 0; i < 4; i++) c += CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)];
     if (!rooms.has(c)) return c;
   }
   return null;
@@ -127,8 +128,8 @@ wss.on('connection', (ws) => {
       }
 
       case 'join': {
-        const code = String(m.code || '');
-        if (!/^[0-3]{4}$/.test(code)) return send(ws, { t: 'err', m: 'Code invalide.' });
+        const code = String(m.code || '').toUpperCase().replace(/\s+/g, '');
+        if (!/^[A-Z]{4}$/.test(code)) return send(ws, { t: 'err', m: 'Code invalide.' });
         const r = rooms.get(code);
         if (!r) return send(ws, { t: 'err', m: 'Aucune salle avec ce code.' });
         if (r.players.length >= 2) return send(ws, { t: 'err', m: 'Cette salle est déjà complète.' });

@@ -38,14 +38,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await Promise.all([a.open, b.open]);
 
   // code invalide / salle inexistante
-  b.send({ t: 'join', code: 'abcd' }); assert.strictEqual((await b.waitFor('err')).t, 'err'); step('code invalide refusé');
-  b.send({ t: 'join', code: '0000' + '1' }); assert((await b.waitFor('err')).m); step('code trop long refusé');
+  b.send({ t: 'join', code: '1234' }); assert.strictEqual((await b.waitFor('err')).t, 'err'); step('code invalide refusé');
+  b.send({ t: 'join', code: 'BCDFG' }); assert((await b.waitFor('err')).m); step('code trop long refusé');
 
   a.send({ t: 'create' });
   const room = await a.waitFor('room');
-  assert(/^[0-3]{4}$/.test(room.code) && room.you === 0); step(`salle créée, code ${room.code.replace(/0/g, '↑').replace(/1/g, '→').replace(/2/g, '↓').replace(/3/g, '←')}`);
+  assert(/^[BCDFGHJKLMNPRSTVWXZ]{4}$/.test(room.code) && room.you === 0); step(`salle créée, code ${room.code}`);
 
-  b.send({ t: 'join', code: room.code });
+  b.send({ t: 'join', code: room.code.toLowerCase() });      // le code est insensible à la casse
   const joined = await b.waitFor('room'); assert.strictEqual(joined.you, 1);
   await a.waitFor('peer'); step('le 2e joueur rejoint, l’hôte est prévenu');
 

@@ -22,8 +22,8 @@ npm start       # http://localhost:3000
   - **Retour au choix des niveaux** : bouton « Niveaux » de la barre du haut (un 2e clic confirme), ou le menu pause. En ligne, le partenaire est prévenu.
 - **Mode entraînement** : bouton « Entraînement » (ou touche **T**) dans le choix des niveaux. Rien n'est enregistré, les chutes ne coûtent que 1/3 de seconde, et une barre d'outils apparaît en bas : **C** pose un point de retour (les deux joueurs doivent être au sol : vous y réapparaissez après chaque chute), **V** passe en ralenti (×½, ×¼ — marche aussi en ligne), **0** repart du début, **1 2 3…** repartent du n-ième drapeau dans l'ordre du niveau. Tout se fait aussi à la souris.
 - **Couleurs** : menu « Couleurs des personnages » (titre) ou bouton « Couleurs » dans le choix des niveaux. 8 couleurs, deux joueurs ne peuvent pas avoir la même. En ligne, chacun choisit la sienne et l'autre la voit tout de suite. Le choix est mémorisé dans le navigateur.
-- **En ligne** : l'hôte crée une salle et donne le code (4 flèches) à l'autre joueur, qui choisit « Rejoindre »
-  (il peut cliquer les flèches ou les taper). L'hôte choisit et lance les niveaux.
+- **En ligne** : l'hôte crée une salle et donne le code (4 lettres, ex. `KRTB`) à l'autre joueur, qui choisit « Rejoindre »
+  (il tape les lettres au clavier, sans tenir compte des majuscules, ou clique sur le petit clavier à l'écran). L'hôte choisit et lance les niveaux.
 - **En local** (même clavier) : joueur 1 = flèches ; joueur 2 = Z Q D.
 - Déploiement (Render, etc.) : `npm install` puis `npm start` ; le port vient de la variable `PORT`.
   Le serveur sert aussi les fichiers du jeu. `GET /healthz` pour la supervision.

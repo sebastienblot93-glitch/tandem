@@ -7,7 +7,8 @@
   const W = Render.W, H = Render.H;               // 960 × 480 logiques
   const TICK = 1000 / 60;
   const GOLD = '#ffd24a', INK = '#f3eeff', DIM = '#9b93bd', PANEL = 'rgba(12,8,30,.82)';
-  const ARROWS = ['↑', '→', '↓', '←'];            // 0..3 = codes de salle
+  const ARROWS = ['↑', '→', '↓', '←'];
+  const CODE_KEYS = 'BCDFGHJKLMNPRSTVWXZ'.split('');   // lettres des codes de salle (4 lettres)
   const canvas = document.getElementById('game');
   const c = canvas.getContext('2d');
 
@@ -249,6 +250,9 @@
   }
 
   function onKeyDown(e) {
+    if (S.screen === 'code' && !e.ctrlKey && !e.metaKey && !e.altKey && /^[a-zA-Z]$/.test(e.key || '')) {   // saisie du code : lettres du clavier
+      e.preventDefault(); Sfx.unlock(); if (!e.repeat) typeCode(e.key.toUpperCase()); return;
+    }
     const a = arrowOf(e), z = altOf(e);
     if (a !== null || e.code === 'Space' || e.code === 'Enter' || e.code === 'Backspace') e.preventDefault();
     Sfx.unlock();
@@ -289,6 +293,11 @@
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => { dn.a.fill(0); dn.z.fill(0); syncInputs(); });
 
+  function typeCode(ch) {
+    if (S.codeIn.length >= 4 || S.connecting) return;
+    S.codeIn += ch; Sfx.play('menu');
+    if (S.codeIn.length === 4) { S.mode = 'online'; connect({ t: 'join', code: S.codeIn }); }
+  }
   // dir : 0 ↑, 1 →, 2 ↓, 3 ←, 'ok', 'back'
   function onPress(dir) {
     const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
@@ -301,11 +310,7 @@
         break;
       }
       case 'code': {
-        if (dir === 'back' || (dir === 'ok')) { if (S.codeIn.length) S.codeIn = S.codeIn.slice(0, -1); else toTitle(); Sfx.play('menu'); break; }
-        if (typeof dir === 'number' && S.codeIn.length < 4 && !S.connecting) {
-          S.codeIn += dir; Sfx.play('menu');
-          if (S.codeIn.length === 4) { S.mode = 'online'; connect({ t: 'join', code: S.codeIn }); }
-        }
+        if (dir === 'back' || dir === LEFT) { if (S.codeIn.length) S.codeIn = S.codeIn.slice(0, -1); else if (dir === 'back') toTitle(); Sfx.play('menu'); }
         break;
       }
       case 'wait': if (dir === DOWN || dir === LEFT || dir === 'back') { toTitle(); Sfx.play('menu'); } break;
@@ -390,8 +395,8 @@
 
   function titleItems() {
     return [
-      { label: 'Créer une salle en ligne', sub: 'Vous donnez un code de 4 flèches à votre partenaire', off: !online, go() { Sfx.play('ok'); S.mode = 'online'; connect({ t: 'create' }); } },
-      { label: 'Rejoindre une salle', sub: 'Saisissez le code de 4 flèches', off: !online, go() { Sfx.play('ok'); S.screen = 'code'; S.codeIn = ''; } },
+      { label: 'Créer une salle en ligne', sub: 'Vous donnez un code de 4 lettres à votre partenaire', off: !online, go() { Sfx.play('ok'); S.mode = 'online'; connect({ t: 'create' }); } },
+      { label: 'Rejoindre une salle', sub: 'Saisissez le code de 4 lettres', off: !online, go() { Sfx.play('ok'); S.screen = 'code'; S.codeIn = ''; } },
       { label: 'Jouer en local', sub: `Un seul clavier : ${Render.P_COL[0].name} ← → ↑  ·  ${Render.P_COL[1].name} Z Q D`, go() { Sfx.play('ok'); S.mode = 'local'; S.colors = prefs.slice(); applyColors(); S.screen = 'select'; S.sel = nextUndone(); } },
       { label: 'Couleurs des personnages', sub: 'Choisissez la couleur de votre bonhomme', go() { Sfx.play('ok'); openColors('title'); } },
       { label: 'Son : ' + (Sfx.enabled ? 'oui' : 'non'), sub: '', go() { Sfx.enabled = !Sfx.enabled; Sfx.play('ok'); } },
@@ -496,6 +501,12 @@
     c.beginPath(); c.moveTo(0, -a * 1.25); c.lineTo(a * 1.1, a * 0.2); c.lineTo(a * 0.4, a * 0.2); c.lineTo(a * 0.4, a * 1.2); c.lineTo(-a * 0.4, a * 1.2); c.lineTo(-a * 0.4, a * 0.2); c.lineTo(-a * 1.1, a * 0.2); c.closePath(); c.fill();
     c.restore();
   }
+  // Touche-lettre (code de salle)
+  function lettercap(ch, x, y, s, color, filled) {
+    c.fillStyle = filled ? color : 'rgba(255,255,255,.08)'; rrect(x - s / 2, y - s / 2, s, s, s * 0.2); c.fill();
+    c.strokeStyle = color; c.lineWidth = 2.5; rrect(x - s / 2, y - s / 2, s, s, s * 0.2); c.stroke();
+    text(ch, x, y + 1, Math.round(s * 0.62), filled ? '#150f2b' : color, 'center', { pix: true });
+  }
   function background(theme, dim) {
     if (!demoG) demoG = Sim.create(LEVELS[0]);
     Render.draw(c, { G: demoG, theme: theme || 'meadow', t: performance.now(), you: -1, scale: scale() });
@@ -538,19 +549,20 @@
   function drawCode() {
     background('arcane', 0.88);
     text('Rejoindre une salle', W / 2, 80, 40, '#fff', 'center', { pix: true });
-    text('Saisissez le code de 4 flèches donné par votre partenaire', W / 2, 130, 20, INK, 'center');
+    text('Saisissez le code de 4 lettres donné par votre partenaire', W / 2, 130, 20, INK, 'center');
     for (let i = 0; i < 4; i++) {
-      const x = W / 2 - 150 + i * 100, y = 230, ch = S.codeIn[i];
-      if (ch !== undefined) keycap(Number(ch), x, y, 80, GOLD, true);
+      const x = W / 2 - 150 + i * 100, y = 215, ch = S.codeIn[i];
+      if (ch !== undefined) lettercap(ch, x, y, 80, GOLD, true);
       else { c.setLineDash([6, 6]); c.strokeStyle = DIM; c.lineWidth = 2.5; rrect(x - 40, y - 40, 80, 80, 16); c.stroke(); c.setLineDash([]); }
     }
-    text(S.connecting || (S.ws && S.codeIn.length === 4) ? 'Connexion…' : 'Tapez les flèches (clavier ou ZQSD) ou cliquez dessus', W / 2, 310, 18, GOLD, 'center');
-    [0, 3, 2, 1].forEach((d, k) => {               // ↑ ← ↓ →
-      const x = W / 2 - 150 + k * 100, y = 375, hov = over(x - 30, y - 30, 60, 60);
-      keycap(d, x, y, 60, hov ? '#fff' : GOLD, hov);
-      addHit(x - 30, y - 30, 60, 60, () => onPress(d));
+    text(S.connecting || (S.ws && S.codeIn.length === 4) ? 'Connexion…' : 'Tapez les lettres au clavier ou cliquez dessus', W / 2, 285, 18, GOLD, 'center');
+    CODE_KEYS.forEach((ch, k) => {                 // petit clavier à la souris : 10 + 9 lettres
+      const row = k < 10 ? 0 : 1, col = row ? k - 10 : k, n = row ? 9 : 10;
+      const x = W / 2 + (col - (n - 1) / 2) * 52, y = 335 + row * 52, hov = over(x - 22, y - 22, 44, 44);
+      lettercap(ch, x, y, 44, hov ? '#fff' : GOLD, hov);
+      addHit(x - 22, y - 22, 44, 44, () => typeCode(ch));
     });
-    button('Effacer', W / 2 + 210, 345, 110, 30, () => onPress('back'), { size: 14 });
+    button('Effacer', W / 2 + 270, 387, 100, 30, () => onPress('back'), { size: 14 });
     button('‹ Retour', 24, H - 52, 120, 34, () => toTitle(), { size: 15 });
     footer([[null, 'Retour arrière : effacer'], [null, 'Échap : quitter']]);
   }
@@ -559,10 +571,10 @@
     background('arcane', 0.88);
     text('Salle créée', W / 2, 70, 40, '#fff', 'center', { pix: true });
     text('Donnez ce code à votre partenaire', W / 2, 120, 20, INK, 'center');
-    for (let i = 0; i < 4; i++) keycap(Number(S.code[i]), W / 2 - 150 + i * 100, 210, 80, GOLD, true);
+    for (let i = 0; i < 4; i++) lettercap(S.code[i], W / 2 - 150 + i * 100, 210, 80, GOLD, true);
     const dots = '.'.repeat(1 + Math.floor(performance.now() / 400) % 3);
     text('En attente du second joueur' + dots, W / 2, 300, 22, INK, 'center');
-    text('Il choisit « Rejoindre une salle » et tape les 4 flèches ci-dessus.', W / 2, 340, 15, DIM, 'center', { bold: false });
+    text('Il choisit « Rejoindre une salle » et tape les 4 lettres ci-dessus.', W / 2, 340, 15, DIM, 'center', { bold: false });
     button('‹ Quitter la salle', 24, H - 52, 190, 34, () => toTitle(), { size: 15 });
     footer([[2, 'quitter la salle']]);
   }
@@ -628,7 +640,7 @@
     if (S.mode === 'online') {
       panel(14, 10, 190, 36, 'rgba(10,6,24,.75)');
       text('Salle', 28, 28, 14, DIM, 'left');
-      for (let i = 0; i < 4; i++) keycap(Number(S.code[i]), 98 + i * 26, 28, 22, GOLD, true);
+      for (let i = 0; i < 4; i++) lettercap(S.code[i], 98 + i * 26, 28, 22, GOLD, true);
       const you = Render.P_COL[S.you];
       panel(W - 214, 10, 200, 36, 'rgba(10,6,24,.75)');
       c.fillStyle = you.main; rrect(W - 200, 18, 18, 20, 6); c.fill();
