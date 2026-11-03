@@ -396,6 +396,23 @@
     }
   }
 
+  /* ---------- Émoticône au-dessus d'un personnage : apparition en rebond, flottement, puis fondu ---------- */
+  const EMOTE_MS = 2800;
+  function drawEmote(c, p, i, em, now) {
+    const age = now - em.at;
+    if (age < 0 || age > EMOTE_MS) return;
+    const pop = Math.min(1, age / 240), k = pop < 1 ? 1 + 2.2 * Math.pow(pop - 1, 3) + 1.2 * Math.pow(pop - 1, 2) : 1;   // dépassement puis stabilisation
+    const fade = age > EMOTE_MS - 500 ? (EMOTE_MS - age) / 500 : 1;
+    const cx = p.x + PW / 2, cy = p.y - 46 + Math.sin(age / 260) * 2 - (age > EMOTE_MS - 500 ? (1 - fade) * 8 : 0);
+    c.save(); c.globalAlpha = fade; c.translate(cx, cy); c.scale(k, k);
+    c.fillStyle = 'rgba(255,255,255,.94)'; c.strokeStyle = P_COL[i].main; c.lineWidth = 2.5;
+    c.beginPath(); c.arc(0, 0, 18, 0, 6.2832); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(-5, 16); c.lineTo(0, 24); c.lineTo(5, 16); c.closePath(); c.fillStyle = 'rgba(255,255,255,.94)'; c.fill();   // petite queue vers le personnage
+    c.font = "22px 'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif"; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#000'; c.fillText(em.e, 0, 1.5);
+    c.restore();
+  }
+
   /* ---------- Nouveaux éléments : tremplin, tapis, dalle fragile, portail ---------- */
   function drawSpring(c, x, y, pressed, t) {
     const sq = pressed ? 0.45 : 1;
@@ -579,6 +596,7 @@
     });
     // joueurs
     G.players.forEach((p, i) => drawPlayer(c, p, i, t, S.you === i, S.t, G.won));
+    if (S.emotes) G.players.forEach((p, i) => { if (S.emotes[i] && !p.dead) drawEmote(c, p, i, S.emotes[i], S.t); });
     FX.draw(c);
     c.setTransform(sc, 0, 0, sc, 0, 0);
     drawTimers(c, G, t);

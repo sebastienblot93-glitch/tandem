@@ -32,7 +32,7 @@
     screen: 'title', menu: 0, mode: null, sel: 0, level: 0, G: null, you: 0, host: true,
     code: '', codeIn: '', count: 1, ws: null, msg: '', msgT: 0, ping: -1, mx: -1, my: -1,
     hd: [0, 0], practice: false, speed: 1, overlay: false, colors: prefs.slice(), row: 0, prev: 'title', confirmT: 0, shake: 0, lastIn: '', connecting: false, resultShown: false,
-    chat: [], typing: false, draft: '', chatHint: 0,
+    chat: [], typing: false, draft: '', chatHint: 0, emotes: [null, null], emoBar: 0,
   };
   let jumpQ = [0, 0], kQ = [0, 0], cQ = 0;
   let demoG = null;
@@ -63,7 +63,7 @@
   }
   function toTitle(message) {
     closeWs();
-    S.chat = []; S.typing = false; S.draft = '';
+    S.chat = []; S.typing = false; S.draft = ''; S.emotes = [null, null]; S.emoBar = 0;
     S.screen = 'title'; S.mode = null; S.G = null; S.overlay = false; S.hd = [0, 0]; S.codeIn = ''; S.code = '';
     S.colors = prefs.slice(); applyColors();
     FX().clear();
@@ -105,14 +105,15 @@
         S.colors = m.colors.slice(); applyColors();
         if (m.from === S.you && !m.ok) { prefs[0] = S.colors[S.you]; savePrefs(); Sfx.play('error'); notify('Cette couleur est déjà prise par votre partenaire.'); }
         break;
-      case 'peer': if (m.colors) { S.colors = m.colors.slice(); applyColors(); } S.count = 2; if (S.screen === 'wait') { S.screen = 'select'; Sfx.play('ok'); notify('Votre partenaire est là !  (Tab : discuter par écrit)', 4200); } break;
+      case 'peer': if (m.colors) { S.colors = m.colors.slice(); applyColors(); } S.count = 2; if (S.screen === 'wait') { S.screen = 'select'; Sfx.play('ok'); notify('Votre partenaire est là !  (Tab : écrire · 1-8 : émoticônes)', 4200); } break;
       case 'peerLeft':
-        S.count = 1; S.you = 0; S.host = true; S.code = m.code; S.sel = m.level || 0; S.G = null; S.overlay = false;
+        S.count = 1; S.you = 0; S.host = true; S.code = m.code; S.sel = m.level || 0; S.G = null; S.overlay = false; S.emotes = [null, null];
         if (m.colors) { S.colors = m.colors.slice(); applyColors(); }
         S.typing = false; S.draft = ''; S.screen = 'wait'; notify('Votre partenaire est parti.'); break;
       case 'sel': S.sel = m.level; if (!S.host) Sfx.play('menu'); break;
       case 'start': startOnline(m.level, m.practice); break;
       case 'speed': S.speed = m.v; break;
+      case 'emote': if (m.from === 0 || m.from === 1) { S.emotes[m.from] = { i: m.i, e: EMOTES[m.i] || '❓', at: performance.now() }; if (m.from !== S.you) Sfx.play('menu'); } break;
       case 'chat': addChat(m.from, String(m.m || '')); if (m.from !== S.you) Sfx.play('menu'); break;
       case 'lobby': S.screen = 'select'; S.sel = m.level; S.G = null; S.overlay = false; FX().clear();
         if (m.by !== undefined && m.by >= 0 && m.by !== S.you) notify('Votre partenaire est revenu au choix des niveaux.');
@@ -253,6 +254,29 @@
   }
 
 
+  /* ---------- Émoticônes (en ligne, en jeu) : touches 1-8, ou E puis un chiffre / un clic (entraînement : 0-9 y sont déjà pris) ---------- */
+  const EMOTES = ['👍', '✋', '❓', '❗', '😂', '😮', '❤️', '🎉'];
+  const EMO_TIPS = ['Ok !', 'Attends', 'Hein ?', 'Attention', 'Ha ha', 'Oh !', 'Merci', 'Bravo'];
+  const emoOk = () => S.mode === 'online' && S.count >= 2 && S.screen === 'play' && S.G && !S.overlay;
+  function sendEmote(i) {
+    if (!emoOk() || i < 0 || i >= EMOTES.length) return;
+    S.emoBar = 0; wsSend({ t: 'emote', i });
+  }
+  function drawEmoBar(now) {
+    if (!S.emoBar || now > S.emoBar || !emoOk()) { S.emoBar = 0; return; }
+    const bw = 38, w = EMOTES.length * bw + 16, x = 10, y = S.practice ? H - 88 : H - 56;
+    c.fillStyle = 'rgba(8,5,20,.88)'; rrect(x, y, w, 46, 12); c.fill();
+    EMOTES.forEach((e, i) => {
+      const bx = x + 8 + i * bw, hov = over(bx, y + 3, bw - 2, 40);
+      if (hov) { c.fillStyle = 'rgba(255,210,74,.28)'; rrect(bx, y + 3, bw - 2, 40, 8); c.fill(); }
+      c.font = "20px 'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif"; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#000';
+      c.fillText(e, bx + (bw - 2) / 2, y + 19);
+      text(String(i + 1), bx + (bw - 2) / 2, y + 38, 10, hov ? GOLD : DIM, 'center');
+      addHit(bx, y + 3, bw - 2, 40, () => sendEmote(i));
+    });
+    if (over(x, y, w, 46)) { const i = Math.floor((S.mx - x - 8) / bw); if (i >= 0 && i < EMOTES.length) text(EMO_TIPS[i], x + w / 2, y - 10, 12, GOLD, 'center'); }
+  }
+
   /* ---------- Chat écrit (en ligne) : Tab pour écrire, Entrée envoie, Échap annule ---------- */
   const CHAT_MAX = 120, CHAT_SHOW = 8000, CHAT_FADE = 1200, CHAT_W = 270;
   const chatOk = () => S.mode === 'online' && S.count >= 2 && ['select', 'colors', 'play', 'result'].includes(S.screen);
@@ -304,6 +328,12 @@
         else { if (a === 0) jumpQ[0] = 1; if (z === 0) jumpQ[1] = 1; }
       }
       if (S.mode === 'online') syncInputs();
+    }
+    if (emoOk()) {                                            // émoticônes
+      const em = /^(?:Digit|Numpad)([1-8])$/.exec(e.code);
+      if (e.code === 'KeyE') { S.emoBar = S.emoBar ? 0 : performance.now() + 5000; Sfx.play('menu'); return; }
+      if (em && (S.emoBar || !S.practice)) { sendEmote(Number(em[1]) - 1); return; }
+      if (e.code === 'Escape' && S.emoBar) { S.emoBar = 0; return; }
     }
     if (e.code === 'KeyP' && S.screen === 'play' && S.G && !S.G.won) { togglePause(); return; }
     if (e.code === 'KeyT' && S.screen === 'select') { launchSelected(true); return; }
@@ -759,7 +789,7 @@
   function drawPlay(now) {
     const G = S.G; if (!G) return;
     const k = S.shake / 14;
-    Render.draw(c, { G, theme: levelTheme(S.level), t: now, you: S.mode === 'online' ? S.you : -1, scale: scale(), cam: S.cam, shake: { x: (Math.random() - 0.5) * 9 * k, y: (Math.random() - 0.5) * 9 * k } });
+    Render.draw(c, { G, theme: levelTheme(S.level), t: now, you: S.mode === 'online' ? S.you : -1, emotes: S.mode === 'online' ? S.emotes : null, scale: scale(), cam: S.cam, shake: { x: (Math.random() - 0.5) * 9 * k, y: (Math.random() - 0.5) * 9 * k } });
     c.setTransform(scale(), 0, 0, scale(), 0, 0);
     drawHud(G);
     if (S.overlay) {
@@ -935,7 +965,7 @@
       default: break;
     }
     c.setTransform(scale(), 0, 0, scale(), 0, 0);
-    drawChat(now);
+    drawChat(now); drawEmoBar(now);
     if (S.screen !== 'play' && S.msg && now < S.msgT) { panel(W / 2 - 250, 8, 500, 34, 'rgba(10,6,24,.9)'); text(S.msg, W / 2, 25, 15, GOLD, 'center'); }
   }
 

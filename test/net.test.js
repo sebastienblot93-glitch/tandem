@@ -162,6 +162,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const gotSpam = a.q.filter((m) => m.t === 'chat').length; assert(gotSpam >= 2 && gotSpam <= 4, 'spam relayé : ' + gotSpam);
   assert(b.q.some((m) => m.t === 'err')); a.q.length = 0; b.q.length = 0; step(`chat : anti-spam (${gotSpam + 1} messages passés sur 9, le reste refusé)`);
 
+  // émoticônes : relayées aux deux avec l'auteur, indices hors plage refusés, cadence limitée
+  a.send({ t: 'emote', i: 6 });
+  const e1 = await a.waitFor('emote'), e2 = await b.waitFor('emote');
+  assert.deepStrictEqual([e1.i, e1.from, e2.i, e2.from], [6, 0, 6, 0]); step('émoticône reçue par les deux, avec l’auteur');
+  b.send({ t: 'emote', i: 8 }); b.send({ t: 'emote', i: -1 }); b.send({ t: 'emote', i: 'x' }); await sleep(120);
+  assert(!a.q.some((m) => m.t === 'emote')); step('émoticône hors liste refusée');
+  b.send({ t: 'emote', i: 1 }); b.send({ t: 'emote', i: 2 }); b.send({ t: 'emote', i: 3 }); await sleep(150);
+  assert.strictEqual(a.q.filter((m) => m.t === 'emote').length, 1); a.q.length = 0; b.q.length = 0; step('émoticônes : cadence limitée');
+
   // départ d'un joueur
   b.ws.close(); const left = await a.waitFor('peerLeft'); assert.strictEqual(left.you, 0); assert.strictEqual(rooms.size, 1); step('départ du partenaire géré');
   a.ws.close(); await sleep(100); assert.strictEqual(rooms.size, 0); step('salle supprimée quand tout le monde est parti');

@@ -44,6 +44,7 @@ const wss = new WebSocketServer({ server, maxPayload: MAX_MSG });
 /** @type {Map<string, any>} */
 const rooms = new Map();
 
+const EMOTES = 8;                                           // nombre d'émoticônes (voir public/game.js)
 const CHAT_MAX = 120, CHAT_RATE = 5, CHAT_WIN = 6000;      // messages : 120 caractères, 5 par 6 s
 // Le code d'une salle : 4 lettres (consonnes seulement : pas de mots, pas de confusion), ex. « KRTB »
 const CODE_LETTERS = 'BCDFGHJKLMNPRSTVWXZ';
@@ -198,6 +199,17 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'k': if (room && room.state === 'play') room.kQ[ws.slot] = 1; break; // retour au dernier drapeau
+
+      case 'emote': { // émoticône (0..7) affichée au-dessus du personnage de l'émetteur chez les deux joueurs
+        if (!room || room.players.length < 2) return;
+        const i = Number(m.i);
+        if (!Number.isInteger(i) || i < 0 || i >= EMOTES) return;
+        const now = Date.now();
+        if (ws.emoT && now - ws.emoT < 350) return;
+        ws.emoT = now;
+        toRoom(room, { t: 'emote', i, from: ws.slot });
+        break;
+      }
 
       case 'chat': { // message écrit : nettoyé, limité en longueur et en cadence, relayé aux deux joueurs
         if (!room || room.players.length < 2) return;
