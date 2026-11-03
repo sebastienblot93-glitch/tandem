@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='8' width='11' height='18' rx='4' fill='%234aa8ff'/%3E%3Crect x='18' y='8' width='11' height='18' rx='4' fill='%23ff9d3d'/%3E%3C/svg%3E">
+<title>Tandem — coop aux flèches</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #0d0a1e; --ink: #f3eeff; --dim: #9b93bd; --gold: #ffd24a; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: radial-gradient(ellipse at 50% 30%, #1d1640 0%, var(--bg) 70%); color: var(--ink); font-family: Nunito, system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+  #wrap { width: min(100vw - 16px, 1400px); display: flex; justify-content: center; }
+  canvas { display: block; border-radius: 14px; box-shadow: 0 10px 50px rgba(0,0,0,.6), 0 0 0 3px #2a2252; background: #000; image-rendering: auto; }
+  #legend { margin-top: 12px; font-size: 14px; color: var(--dim); text-align: center; line-height: 1.5; padding: 0 12px; }
+  kbd { display: inline-block; min-width: 1.7em; padding: 1px 7px; border: 1.5px solid #4a4268; border-bottom-width: 3px; border-radius: 6px; color: var(--ink); background: #1a1436; font: 700 13px Nunito, system-ui, sans-serif; text-align: center; }
+  b.p1 { color: #4aa8ff; } b.p2 { color: #ff9d3d; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game" width="960" height="480" aria-label="Tandem, jeu de plateforme coopératif"></canvas></div>
+<div id="legend">
+  <b id="lgA" class="p1">Bleu</b> : <kbd>←</kbd> <kbd>→</kbd> marcher · <kbd>↑</kbd> sauter (ou <kbd>Q</kbd> <kbd>D</kbd> <kbd>Z</kbd> — <kbd>A</kbd> <kbd>D</kbd> <kbd>W</kbd> en QWERTY) · maintenir <kbd>↓</kbd> puis relâcher : retour au drapeau · <kbd>Échap</kbd> : pause · entraînement : <kbd>C</kbd> point de retour, <kbd>V</kbd> ralenti
+  <br>En local à deux : <b id="lgB" class="p1">Bleu</b> = flèches, <b id="lgC" class="p2">Orange</b> = <kbd>Z</kbd> <kbd>Q</kbd> <kbd>D</kbd> · menus à la souris ou aux flèches
+</div>
+<noscript>Tandem a besoin de JavaScript.</noscript>
+<script src="shared/sim.js"></script>
+<script src="shared/levels.js"></script>
+<script src="audio.js"></script>
+<script src="scenery.js"></script>
+<script src="render.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

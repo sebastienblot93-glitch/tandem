@@ -1,0 +1,9 @@
+# Déploiement Render (Blueprint) : New + → Blueprint, choisir ce dépôt.
+services:
+  - type: web
+    name: tandem
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
