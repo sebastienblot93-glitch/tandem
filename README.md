@@ -82,7 +82,7 @@ Les plateformes « à sens unique » (`=`) existent dans le moteur mais aucun ni
 server.js              serveur http statique + WebSocket, salles, boucle 60 Hz autoritaire
 public/shared/sim.js   moteur déterministe (navigateur + serveur + tests), niveaux de taille variable
 public/shared/levels.js les 30 niveaux (légende en tête de sim.js)
-public/render.js       dessin canvas, personnages (ourson / chaton), caméra dynamique   public/audio.js  sons synthétisés
+public/render.js       dessin canvas, personnages (lapin / chat, dessinés de profil et animés), caméra dynamique   public/audio.js  sons synthétisés
 public/scenery.js      décors par chapitre : ciel, collines en parallaxe, ambiance animée, tuiles et accessoires
 public/game.js         menus, mode local, mode en ligne
 test/                  physique, solutions de chaque niveau jouées par deux « bots », garde-fous « pas jouable seul », test réseau

@@ -290,74 +290,184 @@
   }
 
   /* ---------- Personnages ----------
-     drawCharacter dessine un bonhomme, pieds posés en (x, y). st : { sx, sy, face, walk, look:{x,y}, blink, mood, bob }
-     Joueur 0 : oreilles rondes (ourson) ; joueur 1 : oreilles pointues (chaton). */
+     drawCharacter dessine un animal de profil (3/4), pieds posés en (x, y), tourné vers la droite puis retourné selon `face`.
+     st : { sx, sy, face, walk, walking, look:{x,y}, blink, mood, bob, air, vy, now }
+     Joueur 0 : un lapin (grandes oreilles, queue pompon, grosses pattes arrière) ; joueur 1 : un chat (oreilles pointues, moustaches, queue rayée).
+     Les couleurs viennent de la palette choisie : pelage = main, ombres = dark, museau / ventre = light, contour = line. */
+  const TAU = 6.2832;
+  const ell = (c, x, y, rx, ry, rot) => { c.beginPath(); c.ellipse(x, y, rx, ry, rot || 0, 0, TAU); };
+  const INK = '#1a1530';
+
+  // un membre : trait épais à contour, du point d'attache (x0, y0) à la patte (x1, y1) ; col = couleur du pelage
+  function limb(c, col, fill, x0, y0, x1, y1, w) {
+    c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.strokeStyle = col.line; c.lineWidth = w + 2; c.stroke();
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.strokeStyle = fill; c.lineWidth = w; c.stroke();
+  }
+  // yeux d'un animal vu de 3/4 : `eyes` = [{ x, y, rx, ry }] ; iris = couleur de l'iris (null : œil sombre de lapin)
+  function eyes(c, P, list, iris) {
+    const { blink, mood, lx, ly } = P;
+    list.forEach((e) => {
+      if (mood === 'joy') {                                              // yeux fermés, souriants : ^ ^
+        c.strokeStyle = INK; c.lineWidth = 1.7; c.beginPath(); c.moveTo(e.x - e.rx, e.y + 1.4); c.quadraticCurveTo(e.x, e.y - e.ry * 1.5, e.x + e.rx, e.y + 1.4); c.stroke(); return;
+      }
+      if (blink) { c.strokeStyle = INK; c.lineWidth = 1.7; c.beginPath(); c.moveTo(e.x - e.rx, e.y); c.quadraticCurveTo(e.x, e.y + e.ry * 0.7, e.x + e.rx, e.y); c.stroke(); return; }
+      const big = mood === 'up' || mood === 'down' ? 1.12 : 1;
+      if (iris) {
+        ell(c, e.x, e.y, e.rx * big, e.ry * big); c.fillStyle = iris; c.fill(); c.strokeStyle = INK; c.lineWidth = 1; c.stroke();
+        ell(c, e.x + lx * 0.5, e.y + ly * 0.5, e.rx * (mood === 'up' || mood === 'down' ? 0.62 : 0.38), e.ry * 0.86 * big); c.fillStyle = INK; c.fill();      // pupille verticale (dilatée si surpris)
+      } else { ell(c, e.x + lx * 0.3, e.y + ly * 0.3, e.rx * big, e.ry * big); c.fillStyle = INK; c.fill(); }
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(e.x + lx * 0.4 - e.rx * 0.28, e.y + ly * 0.4 - e.ry * 0.36, Math.max(0.8, e.rx * 0.38), 0, TAU); c.fill();
+      c.globalAlpha = 0.8; c.beginPath(); c.arc(e.x + lx * 0.4 + e.rx * 0.3, e.y + ly * 0.4 + e.ry * 0.38, Math.max(0.5, e.rx * 0.2), 0, TAU); c.fill(); c.globalAlpha = 1;
+    });
+  }
+  function whiskers(c, x, y, len) {
+    c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 0.8; c.lineCap = 'round';
+    [[-2.4, 0.2], [0.2, 1.6], [2.6, 3.4]].forEach(([a, b]) => { c.beginPath(); c.moveTo(x, y + a * 0.35); c.quadraticCurveTo(x + len * 0.55, y + a + b * 0.2, x + len, y + a * 1.5 + b * 0.5); c.stroke(); });
+  }
+
+  function drawCat(c, col, P) {
+    const { walk, walking, air, vy, mood, now, slot } = P;
+    const rim = (w) => { c.strokeStyle = col.line; c.lineWidth = w || 1.8; c.stroke(); };
+    // queue : courte, rayée, qui balance (se dresse quand on est content)
+    const sw = Math.sin(now / 330 + 1) * (walking ? 4.4 : 2.2) + (air ? -2.5 : 0), up = mood === 'joy' ? 5 : 0;
+    const tail = () => { c.beginPath(); c.moveTo(-8, -11); c.bezierCurveTo(-16, -8.5 + sw * 0.25, -19.5 + sw * 0.4, -16.5, -17 + sw * 0.8, -26 - up); };
+    c.lineCap = 'round';
+    tail(); c.lineWidth = 6.6; c.strokeStyle = col.line; c.stroke();
+    tail(); c.lineWidth = 4.2; c.strokeStyle = col.main; c.stroke();
+    tail(); c.lineWidth = 4.2; c.strokeStyle = col.dark; c.setLineDash([2, 5]); c.stroke(); c.setLineDash([]);
+    ell(c, -17 + sw * 0.8, -26 - up, 2.4, 2.4); c.fillStyle = col.dark; c.fill();
+    // pattes : les deux du côté lointain (sombres) puis, après le corps, celles du côté proche
+    const legs = (near) => [[-6.4, Math.PI], [-3.4, 0], [3.2, Math.PI], [6.2, 0]].forEach(([bx, ph], idx) => {
+      const isNear = idx === 0 || idx === 3;                              // (hanche arrière proche, patte avant proche)
+      if (isNear !== near) return;
+      const front = bx > 0;
+      let dx = 0, lift = 0;
+      if (air) { dx = front ? 4 : -3.6; lift = vy < 0 ? 3.2 : 1.2; }
+      else if (walking) { dx = Math.sin(walk + ph) * 3.2; lift = Math.max(0, Math.cos(walk + ph)) * 2.4; }
+      limb(c, col, near ? col.main : col.dark, bx, -10, bx + dx, -2.6 - lift, 3.6);
+      ell(c, bx + dx + 0.6, -2 - lift, 2.5, 1.7); c.fillStyle = near ? col.light : col.main; c.fill(); rim(1.2);
+    });
+    legs(false);
+    // corps
+    const g = c.createLinearGradient(0, -22, 0, -7);
+    g.addColorStop(0, col.top); g.addColorStop(0.5, col.main); g.addColorStop(1, col.dark);
+    ell(c, -0.5, -14.4, 10.9, 7.1); c.fillStyle = g; c.fill(); rim(1.9);
+    c.strokeStyle = col.dark; c.lineWidth = 1.5; c.globalAlpha = 0.6;
+    [-6.2, -2.4, 1.4].forEach((x) => { c.beginPath(); c.moveTo(x, -20.7); c.quadraticCurveTo(x + 1.1, -18.2, x - 0.6, -16); c.stroke(); });      // rayures de tigré
+    c.globalAlpha = 0.85; ell(c, 5.2, -11.4, 4.2, 3.9); c.fillStyle = col.light; c.fill(); c.globalAlpha = 1;       // plastron clair
+    legs(true);
+    // oreilles (la lointaine, puis la proche) : elles frémissent de temps en temps
+    const tw = Math.pow(Math.max(0, Math.sin(now / 1300 + slot * 1.7)), 14) * 0.45;
+    const ear = (bx, by, tx, ty, ex, ey, rot, fillc) => {
+      c.save(); c.translate(bx, by); c.rotate(rot);
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(tx - bx, ty - by); c.lineTo(ex - bx, ey - by); c.closePath(); c.fillStyle = fillc; c.fill(); rim(1.8);
+      c.beginPath(); c.moveTo((tx - bx) * 0.28 + (ex - bx) * 0.2, (ty - by) * 0.28 + (ey - by) * 0.2); c.lineTo((tx - bx) * 0.9 + (ex - bx) * 0.04, (ty - by) * 0.9 + (ey - by) * 0.04); c.lineTo((tx - bx) * 0.2 + (ex - bx) * 0.7, (ty - by) * 0.2 + (ey - by) * 0.7); c.closePath();
+      c.fillStyle = 'rgba(255,150,180,.85)'; c.fill(); c.restore();
+    };
+    ear(4.2, -26.5, 3.6, -36.6, 10.2, -28.8, -tw, col.dark);
+    // tête
+    const hg = c.createLinearGradient(0, -30, 0, -15);
+    hg.addColorStop(0, col.top); hg.addColorStop(1, col.main);
+    ell(c, 8.8, -22.2, 8.7, 7.7); c.fillStyle = hg; c.fill(); rim(1.9);
+    c.strokeStyle = col.dark; c.lineWidth = 1.4; c.globalAlpha = 0.65;
+    [[7.2, -29.4], [9.2, -30], [11.2, -29.4]].forEach(([x, y]) => { c.beginPath(); c.moveTo(x, y); c.lineTo(x + (x - 9.2) * 0.2, y + 3.2); c.stroke(); });     // le « M » du tigré
+    c.globalAlpha = 1;
+    ear(13.6, -26.8, 14.4, -36.8, 8.4, -29.4, tw * 0.8, col.main);
+    // museau, nez, bouche, moustaches, joues
+    ell(c, 14.2, -19.1, 3.8, 3); c.fillStyle = col.light; c.fill();
+    c.beginPath(); c.moveTo(15.6, -21.6); c.lineTo(18.3, -21.6); c.lineTo(16.95, -19.9); c.closePath(); c.fillStyle = '#ff8fa8'; c.fill(); c.strokeStyle = col.line; c.lineWidth = 0.8; c.stroke();
+    c.strokeStyle = INK; c.lineWidth = 1.1; c.fillStyle = INK;
+    if (mood === 'up' || mood === 'down') { ell(c, 16.6, -17.3, 1.4, 1.9); c.fill(); }
+    else if (mood === 'joy') {
+      c.beginPath(); c.moveTo(14.4, -18.4); c.quadraticCurveTo(16.4, -14.2, 18.6, -18.2); c.closePath(); c.fill();
+      ell(c, 16.5, -16.3, 1.3, 0.8); c.fillStyle = '#ff7d9b'; c.fill();
+    } else { c.beginPath(); c.moveTo(16.95, -19.9); c.lineTo(16.95, -18.8); c.quadraticCurveTo(15.6, -17.4, 14.5, -18.3); c.moveTo(16.95, -18.8); c.quadraticCurveTo(18.2, -17.4, 19, -18.5); c.stroke(); }
+    whiskers(c, 16.2, -19, 8);
+    c.fillStyle = 'rgba(255,105,150,.45)'; ell(c, 10.6, -18.4, 2.2, 1.4); c.fill();
+    eyes(c, P, [{ x: 12.4, y: -23.2, rx: 3, ry: 3.6 }, { x: 6.7, y: -23.3, rx: 2.3, ry: 3.2 }], '#8fe070');
+  }
+
+  function drawRabbit(c, col, P) {
+    const { walk, walking, air, vy, mood, now, slot } = P;
+    const rim = (w) => { c.strokeStyle = col.line; c.lineWidth = w || 1.8; c.stroke(); };
+    // queue pompon (qui frétille en marchant)
+    const wg = walking ? Math.sin(walk * 2) * 0.9 : 0;
+    const tx = -11.4, ty = -13 + wg + (air ? -1.5 : 0);
+    ell(c, tx, ty, 4.1, 4); c.fillStyle = col.light; c.fill(); rim(1.6);
+    c.fillStyle = col.light; [[-2.6, -2.8], [2.8, -1.8], [-1.2, 3.2]].forEach(([a, b]) => { ell(c, tx + a, ty + b, 1.7, 1.7); c.fill(); });
+    ell(c, tx, ty, 3.4, 3.3); c.fillStyle = col.light; c.fill();
+    // pattes avant lointaine, puis grosse patte arrière
+    const front = (bx, near) => {
+      let dx = 0, lift = 0;
+      if (air) { dx = 3.2; lift = vy < 0 ? 5 : 2; }
+      else if (walking) { const ph = near ? 0 : Math.PI; dx = Math.sin(walk + ph) * 2.6; lift = Math.max(0, Math.cos(walk + ph)) * 2.2; }
+      limb(c, col, near ? col.main : col.dark, bx, -10, bx + dx, -2.8 - lift, 3.2);
+      ell(c, bx + dx + 0.5, -2 - lift, 2.3, 1.6); c.fillStyle = near ? col.light : col.main; c.fill(); rim(1.1);
+    };
+    front(9.6, false);
+    // pied arrière : long, posé à plat (se tend vers l'arrière en l'air, bat quand on marche)
+    const hopk = walking ? Math.sin(walk) : 0;
+    let fx = -4.6 + hopk * 2.2, fy = -2 - (walking ? Math.max(0, Math.cos(walk)) * 2.4 : 0), frot = 0;
+    if (air) { fx = -8; fy = vy < 0 ? -6.5 : -4.2; frot = vy < 0 ? -0.55 : -0.25; }
+    ell(c, fx, fy, 7.2, 2.5, frot); c.fillStyle = col.main; c.fill(); rim(1.6);
+    // corps : poire, croupe plus haute que le poitrail
+    const g = c.createLinearGradient(0, -22, 0, -6);
+    g.addColorStop(0, col.top); g.addColorStop(0.5, col.main); g.addColorStop(1, col.dark);
+    ell(c, -0.8, -13.8, 10.2, 8, 0.16); c.fillStyle = g; c.fill(); rim(1.9);
+    ell(c, 5.6, -11.6, 4, 4.4); c.globalAlpha = 0.85; c.fillStyle = col.light; c.fill(); c.globalAlpha = 1;            // poitrail clair
+    ell(c, -5, -10, 5.8, 5.6); c.fillStyle = col.main; c.fill(); rim(1.4);                                         // cuisse
+    c.strokeStyle = col.dark; c.globalAlpha = 0.5; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-8.2, -12.4); c.quadraticCurveTo(-5, -15.2, -1.8, -11.2); c.stroke(); c.globalAlpha = 1;
+    front(7, true);
+    // oreilles : longues, penchées en arrière quand ça saute, qui tressautent à la marche
+    const lean = 0.16 + (air ? (vy < 0 ? 0.42 : 0.2) : 0) + (walking ? Math.sin(walk * 2 + 1) * 0.07 : Math.sin(now / 1500 + slot) * 0.025) + (mood === 'joy' ? -0.12 : 0);
+    const ear = (bx, by, len, rot, main, inner) => {
+      c.save(); c.translate(bx, by); c.rotate(-rot);
+      c.beginPath(); c.moveTo(-2.6, 0); c.bezierCurveTo(-4.4, -len * 0.4, -3, -len * 0.92, 0.3, -len); c.bezierCurveTo(3.2, -len * 0.9, 4.2, -len * 0.4, 2.8, 0); c.closePath();
+      c.fillStyle = main; c.fill(); rim(1.7);
+      c.beginPath(); c.moveTo(-1.1, -1.2); c.bezierCurveTo(-2.2, -len * 0.4, -1.4, -len * 0.78, 0.4, -len * 0.84); c.bezierCurveTo(1.8, -len * 0.7, 2.2, -len * 0.4, 1.4, -1.2); c.closePath();
+      c.fillStyle = inner; c.fill(); c.restore();
+    };
+    ear(4.4, -26.2, 12.4, lean + 0.1, col.dark, 'rgba(255,170,190,.6)');
+    // tête
+    const hg = c.createLinearGradient(0, -29, 0, -15);
+    hg.addColorStop(0, col.top); hg.addColorStop(1, col.main);
+    ell(c, 8, -21.4, 8.2, 7.3); c.fillStyle = hg; c.fill(); rim(1.9);
+    ear(8.8, -27.4, 12.6, lean * 0.7 - 0.05, col.main, 'rgba(255,150,180,.85)');
+    // museau, nez, dents, moustaches, joue
+    ell(c, 13.6, -18.9, 4.6, 3.6); c.fillStyle = col.light; c.fill(); rim(1.2);
+    ell(c, 17.4, -20.2, 1.5, 1.2); c.fillStyle = '#ff8fa8'; c.fill();
+    c.strokeStyle = INK; c.lineWidth = 1; c.fillStyle = INK;
+    if (mood === 'up' || mood === 'down') { ell(c, 16, -16.4, 1.5, 2); c.fill(); }
+    else if (mood === 'joy') { c.beginPath(); c.moveTo(13.6, -17.6); c.quadraticCurveTo(15.8, -13.4, 18, -17.4); c.closePath(); c.fill(); ell(c, 15.9, -15.3, 1.4, 0.8); c.fillStyle = '#ff7d9b'; c.fill(); }
+    else { c.beginPath(); c.moveTo(17.2, -19); c.lineTo(16.6, -17.6); c.quadraticCurveTo(15.4, -16.4, 14.4, -17.4); c.moveTo(16.6, -17.6); c.quadraticCurveTo(17.6, -16.4, 18.4, -17.2); c.stroke(); }
+    if (mood !== 'joy' && mood !== 'up' && mood !== 'down') { c.fillStyle = '#fff'; c.strokeStyle = col.line; c.lineWidth = 0.9; rr(c, 15, -17.2, 2.2, 2.6, 0.8); c.fill(); c.stroke(); }   // dents de lapin
+    whiskers(c, 16.4, -18.8, 6.5);
+    c.fillStyle = 'rgba(255,105,150,.45)'; ell(c, 10.2, -17.9, 2.3, 1.5); c.fill();
+    eyes(c, P, [{ x: 11.2, y: -22.8, rx: 2.6, ry: 3.1 }, { x: 5.6, y: -22.9, rx: 1.9, ry: 2.5 }], null);
+  }
+
   function drawCharacter(c, x, y, col, slot, st) {
     st = st || {};
     const f = st.face === undefined ? 1 : st.face, sx = st.sx || 1, sy = st.sy || 1;
-    const walk = st.walk || 0, bob = st.bob || 0, mood = st.mood || 'idle';
-    c.save(); c.translate(x, y); c.scale(sx, sy);
+    const mood = st.mood || 'idle';
+    const now = st.now !== undefined ? st.now : (typeof performance !== 'undefined' ? performance.now() : 0);
+    const air = st.air !== undefined ? st.air : (mood === 'up' || mood === 'down');
+    const vy = st.vy !== undefined ? st.vy : (mood === 'up' ? -6 : mood === 'down' ? 6 : 0);
+    const fs = f < 0 ? -1 : 1, fm = Math.min(1, Math.abs(f));
+    const P = {
+      walk: st.walk || 0, walking: !!st.walking, air, vy, mood, now, slot, blink: !!st.blink,
+      lx: (st.look ? st.look.x * fs : 1) * 0.9, ly: st.look ? st.look.y : 0,
+    };
+    c.save(); c.translate(x, y); c.scale(sx * fs * (0.4 + 0.6 * fm), sy);            // demi-tour : le personnage se « retourne » en s'étroitisant
     // ombre
-    c.fillStyle = 'rgba(0,0,0,.26)'; c.beginPath(); c.ellipse(0, 0, 12, 3.2, 0, 0, 6.2832); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.26)'; c.beginPath(); c.ellipse(-1, 0, 14, 3.2, 0, 0, TAU); c.fill();
     c.lineJoin = 'round'; c.lineCap = 'round';
-    const stroke = () => { c.strokeStyle = col.line; c.lineWidth = 2.2; c.stroke(); };
-    // pieds (alternés quand on marche)
-    const lift = (k) => (st.walking ? Math.max(0, Math.sin(walk + k * Math.PI)) * 3.2 : 0);
-    [-1, 1].forEach((k) => {
-      c.fillStyle = col.dark; c.beginPath(); c.ellipse(k * 6.2 + f * 0.6, -2.6 - lift(k > 0 ? 0 : 1), 5.4, 3.4, 0, 0, 6.2832); c.fill(); stroke();
-    });
-    c.translate(0, -bob);
-    // oreilles (derrière le corps)
-    c.fillStyle = col.main;
-    if (slot === 0) {
-      [-1, 1].forEach((k) => {
-        c.beginPath(); c.arc(k * 8.4, -28.6, 4.8, 0, 6.2832); c.fill(); stroke();
-        c.fillStyle = 'rgba(255,170,200,.75)'; c.beginPath(); c.arc(k * 8.4, -28.2, 2.2, 0, 6.2832); c.fill(); c.fillStyle = col.main;
-      });
-    } else {
-      [-1, 1].forEach((k) => {
-        c.beginPath(); c.moveTo(k * 12.2, -24); c.lineTo(k * 9.6, -35.6); c.lineTo(k * 3.6, -27.6); c.closePath(); c.fill(); stroke();
-        c.fillStyle = 'rgba(255,170,200,.8)'; c.beginPath(); c.moveTo(k * 10.2, -26); c.lineTo(k * 9, -32); c.lineTo(k * 5.8, -27.4); c.closePath(); c.fill(); c.fillStyle = col.main;
-      });
-    }
-    // bras (petites boules)
-    const armUp = mood === 'up' || mood === 'joy' ? 1 : 0, sw = st.walking ? Math.sin(walk) * 2 : 0;
-    [-1, 1].forEach((k) => {
-      c.fillStyle = col.main; c.beginPath(); c.arc(k * 13.2, -12 - armUp * 5 + (k > 0 ? sw : -sw), 3.4, 0, 6.2832); c.fill(); stroke();
-    });
-    // corps
-    const g = c.createLinearGradient(0, -30, 0, -3);
-    g.addColorStop(0, col.top); g.addColorStop(0.55, col.main); g.addColorStop(1, col.dark);
-    c.fillStyle = g; rr(c, -13, -30, 26, 27, 12.5); c.fill(); stroke();
-    c.fillStyle = 'rgba(255,255,255,.32)'; c.beginPath(); c.ellipse(-6.6, -25, 3.6, 2, -0.5, 0, 6.2832); c.fill();   // reflet
-    c.fillStyle = 'rgba(255,255,255,.2)'; c.beginPath(); c.ellipse(0, -9.6, 7.4, 5.2, 0, 0, 6.2832); c.fill();       // ventre
-    // joues
-    c.fillStyle = 'rgba(255,105,150,.5)';
-    [-1, 1].forEach((k) => { c.beginPath(); c.ellipse(k * 9.2 + f * 1.2, -11.6, 3.1, 2, 0, 0, 6.2832); c.fill(); });
-    // yeux
-    const ex = (k) => k * 5.2 + f * 1.7;
-    if (st.blink || mood === 'joy') {
-      c.strokeStyle = '#1a1530'; c.lineWidth = 2; c.beginPath();
-      [-1, 1].forEach((k) => { if (mood === 'joy') { c.moveTo(ex(k) - 3.4, -16.4); c.quadraticCurveTo(ex(k), -21.6, ex(k) + 3.4, -16.4); } else { c.moveTo(ex(k) - 3.4, -17.6); c.quadraticCurveTo(ex(k), -15.2, ex(k) + 3.4, -17.6); } });
-      c.stroke();
-    } else {
-      const lx = (st.look ? st.look.x : f) * 1.1, ly = st.look ? st.look.y : 0;
-      [-1, 1].forEach((k) => {
-        c.fillStyle = '#fff'; c.beginPath(); c.ellipse(ex(k), -18.4, 4.5, 5.5, 0, 0, 6.2832); c.fill();
-        c.fillStyle = '#1a1530'; c.beginPath(); c.ellipse(ex(k) + lx, -18 + ly, 3.1, 3.9, 0, 0, 6.2832); c.fill();
-        c.fillStyle = '#fff'; c.beginPath(); c.arc(ex(k) + lx - 1, -19.6 + ly, 1.25, 0, 6.2832); c.fill();
-        c.globalAlpha = 0.85; c.beginPath(); c.arc(ex(k) + lx + 1.1, -16.4 + ly, 0.65, 0, 6.2832); c.fill(); c.globalAlpha = 1;
-      });
-    }
-    // bouche
-    const mx = f * 1.8;
-    c.fillStyle = '#1a1530'; c.strokeStyle = '#1a1530'; c.lineWidth = 1.7;
-    if (mood === 'down') { c.beginPath(); c.ellipse(mx, -11.4, 2.3, 3, 0, 0, 6.2832); c.fill(); }
-    else if (mood === 'up') { c.beginPath(); c.ellipse(mx, -11.8, 1.7, 2.1, 0, 0, 6.2832); c.fill(); }
-    else if (mood === 'joy') {
-      c.beginPath(); c.moveTo(mx - 3.2, -12.6); c.quadraticCurveTo(mx, -6.4, mx + 3.2, -12.6); c.closePath(); c.fill();
-      c.fillStyle = '#ff7d9b'; c.beginPath(); c.ellipse(mx, -9.2, 1.7, 1, 0, 0, 6.2832); c.fill();
-    } else { c.beginPath(); c.moveTo(mx - 2.4, -12.4); c.quadraticCurveTo(mx, -9.8, mx + 2.4, -12.4); c.stroke(); }
+    // respiration / pas : le corps rebondit, penche le nez en l'air puis en chute
+    c.translate(0, -(st.bob || 0));
+    const tilt = air ? (vy < 0 ? -0.13 : 0.1) : 0;
+    c.translate(0, -12); c.rotate(tilt); c.translate(0, 12);
+    if (slot === 0) drawRabbit(c, col, P); else drawCat(c, col, P);
     c.restore();
   }
 
@@ -392,12 +502,12 @@
     const mood = joy ? 'joy' : !p.onGround ? (p.vy < -1.5 ? 'up' : p.vy > 5 ? 'down' : 'idle') : (now - st.landAt < 160 ? 'joy' : 'idle');
     drawCharacter(c, p.x + PW / 2, p.y + PH, P_COL[i], i, {
       sx, sy, face: st.fd, walk: st.walk, walking, bob: walking ? Math.abs(Math.sin(st.walk)) * 1.4 : 0, blink,
-      mood, look: { x: Math.max(-1, Math.min(1, st.fd)) * (0.6 + 0.4 * Math.min(1, moved)), y: Math.max(-1.2, Math.min(1.4, p.vy / 6)) },
+      mood, air: !p.onGround, vy: p.vy, now, look: { x: Math.max(-1, Math.min(1, st.fd)) * (0.6 + 0.4 * Math.min(1, moved)), y: Math.max(-1.2, Math.min(1.4, p.vy / 6)) },
     });
     if (isYou) {
       const bobY = Math.sin(t / 8) * 2, cx = p.x + PW / 2, col = P_COL[i];
       c.fillStyle = col.main; c.strokeStyle = '#0d0a1c'; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(cx, p.y - 12 + bobY); c.lineTo(cx - 6, p.y - 21 + bobY); c.lineTo(cx + 6, p.y - 21 + bobY); c.closePath(); c.stroke(); c.fill();
+      c.beginPath(); c.moveTo(cx, p.y - 15 + bobY); c.lineTo(cx - 6, p.y - 24 + bobY); c.lineTo(cx + 6, p.y - 24 + bobY); c.closePath(); c.stroke(); c.fill();
     }
   }
 
