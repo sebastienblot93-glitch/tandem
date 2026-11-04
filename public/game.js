@@ -45,6 +45,11 @@
   const levelTheme = (i) => (CHAPTERS[LEVELS[i].ch] || CHAPTERS[0]).theme;
   const fmtTime = (ticks) => { const s = ticks / 60; return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`; };
 
+  /* ---------- Panneau de chat (HTML, à droite du jeu) ---------- */
+  const chBox = document.getElementById('chatbox'), chLog = document.getElementById('chLog'), chIn = document.getElementById('chIn'), chBtn = document.getElementById('chBtn');
+  const chSub = document.getElementById('chSub'), chCat = document.getElementById('chCat'), chEmpty = document.getElementById('chEmpty');
+  S.panel = false;
+
   /* ---------- Dimensionnement ---------- */
   function resize() {
     const wrap = document.getElementById('wrap');
@@ -54,6 +59,7 @@
     const px = Math.max(480, Math.round(cssW * dpr / 160) * 160);
     canvas.style.width = cssW + 'px'; canvas.style.height = cssW / 2 + 'px';
     if (canvas.width !== px) { canvas.width = px; canvas.height = px / 2; }
+    if (chBox) { chBox.style.height = Math.round(Math.min(cssW / 2, 440)) + 'px'; S.panel = chBox.offsetParent !== null; }   // panneau de chat visible ? sinon le chat est dessiné dans le jeu
   }
   const scale = () => canvas.width / W;
   window.addEventListener('resize', resize);
@@ -66,7 +72,7 @@
   }
   function toTitle(message) {
     closeWs();
-    S.chat = []; S.typing = false; S.draft = ''; S.emotes = [null, null]; S.emoBar = 0;
+    S.chat = []; S.typing = false; S.draft = ''; S.emotes = [null, null]; S.emoBar = 0; clearChatLog();
     S.screen = 'title'; S.mode = null; S.G = null; S.overlay = false; S.hd = [0, 0]; S.codeIn = ''; S.code = '';
     S.colors = prefs.slice(); applyColors();
     FX().clear();
@@ -298,9 +304,54 @@
   function addChat(from, txt) {
     S.chat.push({ from: from === 1 ? 1 : 0, txt, t: performance.now() });
     if (S.chat.length > 8) S.chat.shift();
+    logChat(from === 1 ? 1 : 0, txt);
+  }
+  // panneau HTML : historique (textContent uniquement, jamais de HTML)
+  function logChat(from, txt) {
+    if (!chLog) return;
+    if (chEmpty && chEmpty.parentNode) chEmpty.remove();
+    const who = Render.P_COL[from], d = document.createElement('div'), b = document.createElement('b');
+    d.className = 'ch-m'; d.style.setProperty('--c', who.main);
+    b.textContent = who.name; d.appendChild(b); d.appendChild(document.createTextNode(' ' + txt));
+    const atEnd = chLog.scrollHeight - chLog.scrollTop - chLog.clientHeight < 40;
+    chLog.appendChild(d);
+    while (chLog.children.length > 60) chLog.removeChild(chLog.firstChild);
+    if (atEnd || from === S.you) chLog.scrollTop = chLog.scrollHeight;
+    if (from !== S.you && chCat) { chCat.classList.remove('perk'); void chCat.getBoundingClientRect(); chCat.classList.add('perk'); }   // le chat dresse l'oreille
+  }
+  function clearChatLog() {
+    if (!chLog) return;
+    chLog.textContent = '';
+    if (chEmpty) chLog.appendChild(chEmpty);
+  }
+  let chKey = '';
+  function updateChatPanel() {                                 // état du panneau : activé seulement en ligne à deux
+    if (!chBox) return;
+    const ok = chatOk(), k = (ok ? 1 : 0) + '|' + S.mode + '|' + S.count;
+    if (k === chKey) return;
+    chKey = k;
+    chIn.disabled = chBtn.disabled = !ok;
+    chIn.placeholder = ok ? 'Écrire…' : 'En ligne, à deux';
+    chSub.textContent = ok ? 'Tab pour écrire' : S.mode === 'online' ? 'J’attends votre partenaire…' : 'Miaou !';
+    if (!ok && document.activeElement === chIn) chIn.blur();
+  }
+  if (chBox) {
+    chIn.addEventListener('focus', () => { dn.a.fill(0); dn.z.fill(0); syncInputs(true); });
+    chIn.addEventListener('keydown', (e) => {
+      e.stopPropagation();                                      // les touches tapées ici ne commandent jamais le jeu
+      if (e.code === 'Escape' || e.code === 'Tab') { e.preventDefault(); chIn.blur(); }
+    });
+    chIn.addEventListener('keyup', (e) => e.stopPropagation());
+    document.getElementById('chForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const t = chIn.value.replace(/\s+/g, ' ').trim();
+      if (t && chatOk()) { wsSend({ t: 'chat', m: t }); Sfx.play('ok'); }
+      chIn.value = ''; chIn.blur();
+    });
   }
   function chatOpen() {
     if (!chatOk() || S.typing) return;
+    if (S.panel) { chIn.focus(); Sfx.play('menu'); return; }   // panneau visible : on écrit dedans
     S.typing = true; S.draft = ''; dn.a.fill(0); dn.z.fill(0); syncInputs(true); Sfx.play('menu');
   }
   function chatClose(send) {
@@ -927,7 +978,7 @@
 
   /* ---------- Chat : messages discrets en bas à droite, qui s'effacent seuls ---------- */
   function drawChat(now) {
-    if (S.mode !== 'online') return;
+    if (S.mode !== 'online' || S.panel) return;
     if (S.typing && !chatOk()) { S.typing = false; S.draft = ''; }
     const typing = S.typing, X = W - 10 - CHAT_W;
     let base = S.screen === 'play' ? H - 12 : H - 48;      // en menu : au-dessus de la rangée de boutons
@@ -995,7 +1046,7 @@
       default: break;
     }
     c.setTransform(scale(), 0, 0, scale(), 0, 0);
-    drawChat(now); drawEmoBar(now);
+    updateChatPanel(); drawChat(now); drawEmoBar(now);
     if (S.screen !== 'play' && S.msg && now < S.msgT) { panel(W / 2 - 250, 8, 500, 34, 'rgba(10,6,24,.9)'); text(S.msg, W / 2, 25, 15, GOLD, 'center'); }
   }
 
