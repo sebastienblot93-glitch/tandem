@@ -13,6 +13,8 @@
   const DEFAULT_RHYTHM = { period: 120, on: 50 };
   const DEFAULT_RSPIKE = { period: 100, on: 46 };      // pics rythmés : phase A = sortis pendant les `on` premiers ticks, phase B = pendant la 2e moitié
   const DEFAULT_FRAG = { delay: 26, restore: 200 };
+  const CANNON = { dir: 1, vx: 6, vy: -11, t: 80 };         // canon : propulsion (vx imposé pendant t ticks au plus, ou jusqu'à l'atterrissage)
+  const LIFT_H = 10;                                         // épaisseur d'une plateforme mobile
   const DEFAULT_BELT = { speed: 2, flip: 0 };
   const VENT = { lift: 1.1, max: 4.4 };          // courant d'air : accélération vers le haut et vitesse de montée maximale
 
@@ -38,6 +40,11 @@
   //   x y z  interrupteurs à bascule, groupes 1 2 3 : on les enfonce en marchant dessus, chaque pression change l'état du groupe (ouvre / referme les grilles A B C, souffle les courants P Q R)
   //   P Q R  courants d'air, groupes 1 2 3 : tant que le groupe est actif (plaque tenue ou interrupteur basculé), ils emportent vers le haut
   //   e E    pics rythmés : sortis pendant la phase A (e) ou B (E) de cfg.rspike, rentrés le reste du temps (inoffensifs)
+  //   g h i  canons, groupes 1 2 3 (case vide posée sur un sol) : un joueur DEBOUT dedans est propulsé dès que le groupe est actif
+  //          (plaque tenue par l'autre, interrupteur basculé). cfg.cannon[g] = { dir, vx, vy, t } : sens, vitesse horizontale imposée, impulsion, durée max du vol
+  //   cfg.lifts : plateformes mobiles { x, y, w, len, axis, speed, g } (cases ; len < 0 = vers le haut / la gauche). Elles vont au bout de leur course tant que le groupe g est actif
+  //          et reviennent sinon ; elles portent ceux qui sont dessus et s'arrêtent plutôt que d'écraser quelqu'un
+  //   cfg.any : liste de groupes de plaques « à appui unique » : il suffit qu'UNE plaque du groupe soit pressée (au lieu de toutes) — plaque d'appel en haut ET en bas d'un ascenseur
   //   (cfg.phys : gravity, jump, spring, speed, maxFall — la physique propre à un niveau)
   //   r s    blocs « rythme » : r présent pendant la 1re moitié de la période, s pendant la 2e (cfg.rhythm)
   const GROUP = (ch, set) => set.indexOf(ch) + 1;
@@ -54,9 +61,10 @@
       phys: Object.assign({}, PHYS, cfg.phys || {}),
       frag: Object.assign({}, DEFAULT_FRAG, cfg.frag || {}), belt: Object.assign({}, DEFAULT_BELT, cfg.belt || {}),
       base: new Uint8Array(n), gateG: new Uint8Array(n), inv: new Uint8Array(n), bridgeG: new Uint8Array(n), bellAt: new Uint8Array(n),
-      rhA: new Uint8Array(n), rhB: new Uint8Array(n), dynCells: [],
+      rhA: new Uint8Array(n), rhB: new Uint8Array(n), dynCells: [], cannons: [], lifts: [],
       plates: [], bells: [], spikes: [], flags: [], doors: [], spawns: [null, null],
       rhythm: Object.assign({}, DEFAULT_RHYTHM, cfg.rhythm || {}), rspike: Object.assign({}, DEFAULT_RSPIKE, cfg.rspike || {}), rspikes: [],
+      any: [0, 1, 2, 3].map((g) => (cfg.any && cfg.any.includes(g) ? 1 : 0)),
       groupsWithPlates: [0, 0, 0, 0], groupsWithToggles: [0, 0, 0, 0], groupsWithBells: [0, 0, 0, 0], bridgeDoor: [0, 0, 0, 0],
     };
     for (let g = 1; g <= 3; g++) L.bridgeDoor[g] = cfg.bell && cfg.bell[g] && cfg.bell[g].door ? 1 : 0;
@@ -87,10 +95,16 @@
         else if (GROUP(ch, 'ABC')) { L.gateG[idx] = GROUP(ch, 'ABC'); L.dynCells.push(idx); }
         else if (GROUP(ch, 'XYZ')) { L.gateG[idx] = GROUP(ch, 'XYZ'); L.inv[idx] = 1; L.dynCells.push(idx); }
         else if (GROUP(ch, 'MNO')) { L.bridgeG[idx] = GROUP(ch, 'MNO'); L.dynCells.push(idx); }
+        else if (GROUP(ch, 'ghi')) { const g = GROUP(ch, 'ghi'); L.cannons.push(Object.assign({ g, tx, ty, x: px, y: py }, CANNON, (cfg.cannon && cfg.cannon[g]) || {})); }
         else if (ch === 'r') { L.rhA[idx] = 1; L.dynCells.push(idx); }
         else if (ch === 's') { L.rhB[idx] = 1; L.dynCells.push(idx); }
         else if (ch !== '.') throw new Error(`${def.name} : caractère inconnu « ${ch} » en (${tx},${ty})`);
       }
+    });
+    (cfg.lifts || []).forEach((q, k) => {
+      const axis = q.axis === 'x' ? 'x' : 'y', len = Number(q.len) || 0;
+      if (!len || !(q.g >= 1 && q.g <= 3)) throw new Error(`${def.name} : plateforme mobile ${k} invalide`);
+      L.lifts.push({ x0: q.x * TILE, y0: q.y * TILE, w: (q.w || 2) * TILE, h: LIFT_H, axis, sg: Math.sign(len), total: Math.abs(len) * TILE, speed: q.speed || 2, g: q.g });
     });
     for (let g = 1; g <= 3; g++) {
       const ks = []; L.portals.forEach((q, k) => { if (q.g === g) ks.push(k); });
@@ -128,7 +142,7 @@
 
   function makePlayer(i, L) {
     const s = L.spawns[i];
-    return { i, x: s.x, y: s.y, vy: 0, face: i === 0 ? 1 : -1, onGround: false, coyote: 0, jumpBuf: 0, dead: 0, landed: 0, portal: -1 };
+    return { i, x: s.x, y: s.y, vy: 0, face: i === 0 ? 1 : -1, onGround: false, coyote: 0, jumpBuf: 0, dead: 0, landed: 0, portal: -1, fly: 0, fvx: 0, cannon: -1 };
   }
 
   function create(def) {
@@ -140,7 +154,7 @@
       flagMask: L.flags.map(() => 0), flagDone: L.flags.map(() => 0), cp: -1,
       doorOcc: [-1, -1], winHold: 0, won: false, wonT: 0, deaths: 0,
       fragT: L.frags.map(() => 0), fragR: L.frags.map(() => 0),
-      dyn: new Uint8Array(L.cols * L.nr), events: [],
+      dyn: new Uint8Array(L.cols * L.nr), events: [], lift: L.lifts.map(() => 0),
     };
     for (let g = 1; g <= 3; g++) if (L.ventGroups[g] && !L.groupsWithPlates[g] && !L.groupsWithToggles[g]) G.open[g] = 1;      // courant sans commande : toujours actif
     computeDyn(G);
@@ -195,11 +209,51 @@
     return L.base[idx] === 1 || G.dyn[idx] === 1;
   }
 
-  function hitsWorld(G, x, y) {
-    const x0 = Math.floor(x / TILE), x1 = Math.floor((x + PW - 0.001) / TILE);
-    const y0 = Math.floor(y / TILE), y1 = Math.floor((y + PH - 0.001) / TILE);
+  function rectHitsTiles(G, x, y, w, h) {
+    const x0 = Math.floor(x / TILE), x1 = Math.floor((x + w - 0.001) / TILE);
+    const y0 = Math.floor(y / TILE), y1 = Math.floor((y + h - 0.001) / TILE);
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) if (solidAt(G, tx, ty)) return true;
     return false;
+  }
+  const hitsTiles = (G, x, y) => rectHitsTiles(G, x, y, PW, PH);
+
+  /* ---------- Plateformes mobiles ---------- */
+  function liftRect(G, k) {
+    const f = G.L.lifts[k], d = f.sg * G.lift[k];
+    return f.axis === 'x' ? { x: f.x0 + d, y: f.y0, w: f.w, h: f.h } : { x: f.x0, y: f.y0 + d, w: f.w, h: f.h };
+  }
+  // index de la plateforme qui chevauche un joueur placé en (x, y), sinon -1
+  function hitsLift(G, x, y) {
+    for (let k = 0; k < G.L.lifts.length; k++) { const r = liftRect(G, k); if (overlap(x, y, PW, PH, r.x, r.y, r.w, r.h)) return k; }
+    return -1;
+  }
+  const hitsWorld = (G, x, y) => hitsTiles(G, x, y) || (G.L.lifts.length > 0 && hitsLift(G, x, y) >= 0);
+
+  // joueurs portés : ceux posés sur la plateforme, et ceux posés sur leur tête
+  function liftRiders(G, r) {
+    const set = G.players.filter((p) => !p.dead && Math.abs(p.y + PH - r.y) < 0.01 && p.x < r.x + r.w && p.x + PW > r.x);
+    G.players.forEach((q) => { if (!q.dead && !set.includes(q) && set.some((p) => resting(q, p))) set.push(q); });
+    return set;
+  }
+  // avance la plateforme k d'un pixel dans le sens d (+1 vers la fin de course) ; refuse si elle écraserait quelqu'un ou entrerait dans un mur
+  function stepLift(G, k, d) {
+    const f = G.L.lifts[k], r0 = liftRect(G, k);
+    const dx = f.axis === 'x' ? f.sg * d : 0, dy = f.axis === 'x' ? 0 : f.sg * d;
+    const r1 = { x: r0.x + dx, y: r0.y + dy, w: r0.w, h: r0.h };
+    if (rectHitsTiles(G, r1.x, r1.y, r1.w, r1.h)) return false;
+    const riders = liftRiders(G, r0);
+    for (const p of G.players) if (!p.dead && !riders.includes(p) && overlap(p.x, p.y, PW, PH, r1.x, r1.y, r1.w, r1.h)) return false;
+    for (const p of riders) if (hitsTiles(G, p.x + dx, p.y + dy)) return false;
+    G.lift[k] += d;
+    riders.forEach((p) => { p.x += dx; p.y += dy; });
+    return true;
+  }
+  function moveLifts(G) {
+    const L = G.L;
+    for (let k = 0; k < L.lifts.length; k++) {
+      const f = L.lifts[k], target = G.open[f.g] ? f.total : 0;
+      for (let n = 0; n < f.speed && G.lift[k] !== target; n++) if (!stepLift(G, k, G.lift[k] < target ? 1 : -1)) break;
+    }
   }
 
   // q est posé sur la tête de p
@@ -267,9 +321,13 @@
       const s = Math.abs(rem) > 1 ? Math.sign(rem) : rem;
       const ny = p.y + s;
       // En cas de contact on se cale exactement contre l'obstacle (sinon on pourrait rester à < 1 px au-dessus)
-      if (hitsWorld(G, p.x, ny)) {
+      if (hitsTiles(G, p.x, ny)) {
         if (s > 0) { p.onGround = true; p.y = Math.floor((ny + PH - 0.001) / TILE) * TILE - PH; } else { bump(G, p.x, ny); p.y = (Math.floor(ny / TILE) + 1) * TILE; }
         p.vy = 0; return;
+      }
+      if (G.L.lifts.length) {                                  // plateforme mobile : on se pose dessus, on se cogne dessous
+        const k = hitsLift(G, p.x, ny);
+        if (k >= 0) { if (s > 0) { p.onGround = true; p.y = liftRect(G, k).y - PH; } p.vy = 0; return; }
       }
       if (s > 0 && G.L.hasOneway) { const r = landsOnOneway(G, p, ny); if (r >= 0) { p.onGround = true; p.y = r * TILE - PH; p.vy = 0; return; } }
       if (!q.dead && overlap(p.x, ny, PW, PH, q.x, q.y, PW, PH)) {
@@ -332,17 +390,23 @@
     const p = G.players[i];
     if (p.dead) { p.dead--; if (p.dead === 0) respawn(G, i); return; }
     if (inp.k) { recall(G, i); return; }
-    if (p.onGround) {                                       // tapis roulant : on est entraîné même à l'arrêt
+    const flying = p.fly > 0;
+    if (flying) {                                           // propulsé par un canon : trajectoire horizontale imposée jusqu'à l'atterrissage ou un obstacle
+      const x0 = p.x; moveX(G, i, p.fvx);
+      if (Math.abs(p.x - x0) < Math.abs(p.fvx) - 0.001) p.fly = 0; else p.fly--;
+    }
+    if (p.onGround && !flying) {                            // tapis roulant : on est entraîné même à l'arrêt
       const b = cellsUnder(G, p, G.L.conv);
       if (b) moveX(G, i, Math.sign(b) * G.L.belt.speed * (G.L.belt.flip && G.open[G.L.belt.flip] ? -1 : 1));
     }
-    const dir = (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
+    const dir = flying ? 0 : (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
+    if (flying) p.face = Math.sign(p.fvx) || p.face;
     if (dir) p.face = dir;
     if (dir) moveX(G, i, dir * P.speed);
 
-    if (inp.j) p.jumpBuf = P.buffer;
+    if (inp.j && !flying) p.jumpBuf = P.buffer;
     if (p.onGround) p.coyote = P.coyote; else if (p.coyote > 0) p.coyote--;
-    if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
+    if (p.jumpBuf > 0 && !flying && (p.onGround || p.coyote > 0)) {
       const boost = p.onGround && cellsUnder(G, p, G.L.spring) > 0;
       p.vy = boost ? P.spring : P.jump; p.jumpBuf = 0; p.coyote = 0; p.onGround = false;
       emit(G, 'jump', i, boost ? 1 : 0);
@@ -355,7 +419,7 @@
     p.onGround = false;
     moveY(G, i, p.vy);
     if (p.onGround && wasAir && vyBefore > 2) emit(G, 'land', i, Math.min(12, Math.round(vyBefore)));
-    if (p.onGround) p.landed++; else p.landed = 0;
+    if (p.onGround) { p.landed++; p.fly = 0; } else p.landed = 0;
   }
 
   /* ---------- Déclencheurs (après les déplacements) ---------- */
@@ -376,7 +440,7 @@
       if (L.groupsWithToggles[g]) { const was = G.open[g]; G.open[g] = G.tog[g]; if (G.open[g] !== was) emit(G, G.open[g] ? 'gateOpen' : 'gateClose', g); continue; }
       if (!L.groupsWithPlates[g]) continue;
       const was = G.open[g];
-      if (pressedPerGroup[g] === L.groupsWithPlates[g]) { G.open[g] = 1; G.latch[g] = latchCfg(L, g); }
+      if (L.any[g] ? pressedPerGroup[g] > 0 : pressedPerGroup[g] === L.groupsWithPlates[g]) { G.open[g] = 1; G.latch[g] = latchCfg(L, g); }
       else if (G.latch[g] > 0) { G.latch[g]--; G.open[g] = 1; }
       else G.open[g] = 0;
       if (G.open[g] !== was) emit(G, G.open[g] ? 'gateOpen' : 'gateClose', g);
@@ -407,6 +471,20 @@
         if (hitsWorld(G, nx, ny) || (!other.dead && overlap(nx, ny, PW, PH, other.x, other.y, PW, PH))) return;
         p.x = nx; p.y = ny; p.portal = L.portals[j].pair;
         emit(G, 'portal', i, j);
+      });
+    }
+
+    // Canons : debout dans un canon dont le groupe est actif = propulsé (une seule fois par passage)
+    if (L.cannons.length) {
+      G.players.forEach((p, i) => {
+        if (p.dead) { p.cannon = -1; return; }
+        const cx = p.x + PW / 2, cy = p.y + PH / 2;
+        const j = L.cannons.findIndex((q) => cx >= q.x && cx < q.x + TILE && cy >= q.y && cy < q.y + TILE);
+        if (j < 0) { p.cannon = -1; return; }
+        if (p.cannon === j || !p.onGround || !G.open[L.cannons[j].g]) return;
+        const q = L.cannons[j];
+        p.fly = q.t; p.fvx = q.dir * q.vx; p.vy = q.vy; p.onGround = false; p.cannon = j; p.coyote = 0; p.jumpBuf = 0;
+        emit(G, 'cannon', i, j);
       });
     }
 
@@ -456,6 +534,7 @@
     G.t++;
     computeDyn(G);
     if (G.practice && ((inputs[0] && inputs[0].c) || (inputs[1] && inputs[1].c))) G.pendingPoint = 120;
+    if (G.L.lifts.length) moveLifts(G);
     const order = (G.t & 1) ? [0, 1] : [1, 0];
     for (const i of order) stepPlayer(G, i, inputs[i] || {});
     updateTriggers(G);
@@ -489,7 +568,7 @@
       p: G.players.map((p) => [p.x, p.y, p.vy, p.face, p.onGround ? 1 : 0, p.dead]),
       o: G.open, tg: G.tog, l: G.latch, b: G.bridge, pl: G.plateOn, bt: G.bellT, ft: G.fragT, fr: G.fragR,
       fm: G.flagMask, fd: G.flagDone, cp: G.cp, dr: G.doorOcc, wh: G.winHold,
-      w: G.won ? 1 : 0, wt: G.wonT, d: G.deaths, e: G.events, pr: G.practice ? 1 : 0, cu: G.custom || 0,
+      w: G.won ? 1 : 0, wt: G.wonT, d: G.deaths, e: G.events, pr: G.practice ? 1 : 0, cu: G.custom || 0, lf: G.lift,
     };
   }
 
@@ -501,13 +580,14 @@
     });
     G.open = m.o; G.tog = m.tg || [0, 0, 0, 0]; G.latch = m.l; G.bridge = m.b; G.plateOn = m.pl; G.bellT = m.bt; G.fragT = m.ft; G.fragR = m.fr;
     G.flagMask = m.fm; G.flagDone = m.fd; G.cp = m.cp; G.doorOcc = m.dr; G.winHold = m.wh;
+    if (m.lf) G.lift = m.lf;
     G.won = !!m.w; G.wonT = m.wt; G.deaths = m.d; G.events = m.e || []; G.practice = !!m.pr; G.custom = m.cu || null;
     computeDyn(G);
   }
 
   const API = {
     TILE, PW, PH, COLS, ROWS, PHYS, VENT, RESPAWN, WIN_HOLD, SPIKE, NCOLORS,
-    parseLevel, create, step, practiceGoto, pack, unpack, computeDyn, bellCfg, latchCfg, rhythmOn, spikeState, solidAt, hitsWorld, resting, overlap,
+    parseLevel, create, step, practiceGoto, pack, unpack, computeDyn, liftRect, bellCfg, latchCfg, rhythmOn, spikeState, solidAt, hitsWorld, resting, overlap,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Sim = API;

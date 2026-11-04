@@ -418,6 +418,51 @@
     c.restore();
   }
 
+  /* ---------- Plateformes mobiles et canons ---------- */
+  function drawLifts(c, G, t) {
+    const L = G.L;
+    L.lifts.forEach((f, k) => {
+      const col = G_COL[f.g], r = root.Sim.liftRect(G, k), on = !!G.open[f.g];
+      // rail : le trajet complet, en pointillés
+      const x1 = f.axis === 'x' ? f.x0 + f.sg * f.total : f.x0, y1 = f.axis === 'x' ? f.y0 : f.y0 + f.sg * f.total;
+      c.save(); c.globalAlpha = 0.35; c.strokeStyle = col; c.lineWidth = 2; c.setLineDash([5, 6]);
+      const ox = f.w / 2, oy = f.h / 2;
+      c.beginPath(); c.moveTo(f.x0 + ox, f.y0 + oy); c.lineTo(x1 + ox, y1 + oy); c.stroke(); c.setLineDash([]);
+      c.globalAlpha = 0.55; c.fillStyle = col; c.fillRect(x1, y1 + f.h - 3, f.w, 3); c.fillRect(f.x0, f.y0 + f.h - 3, f.w, 3);     // butées
+      c.restore();
+      // plateforme
+      c.fillStyle = '#2a2236'; rr(c, r.x - 1, r.y - 1, r.w + 2, r.h + 4, 4); c.fill();
+      c.fillStyle = col; rr(c, r.x, r.y - 1, r.w, 7, 3); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.45)'; c.fillRect(r.x + 3, r.y - 1, r.w - 6, 2);
+      // flèches de sens, qui défilent quand la plateforme est commandée
+      const dirY = f.axis === 'x' ? 0 : f.sg, dirX = f.axis === 'x' ? f.sg : 0;
+      const n = Math.max(1, Math.round(r.w / TILE));
+      c.fillStyle = on ? '#fff' : 'rgba(255,255,255,.55)';
+      for (let i = 0; i < n; i++) {
+        const cx = r.x + TILE * (i + 0.5), cy = r.y + 6;
+        c.beginPath();
+        if (dirX) { c.moveTo(cx + 4 * dirX, cy); c.lineTo(cx - 2 * dirX, cy - 3); c.lineTo(cx - 2 * dirX, cy + 3); }
+        else { c.moveTo(cx, cy + 4.5 * dirY - 3); c.lineTo(cx - 4, cy - 2 * dirY - 3); c.lineTo(cx + 4, cy - 2 * dirY - 3); }
+        c.closePath(); c.fill();
+      }
+    });
+  }
+  function drawCannons(c, G, t) {
+    G.L.cannons.forEach((q) => {
+      const col = G_COL[q.g], on = !!G.open[q.g], cx = q.x + 16, cy = q.y + 21;
+      const ang = Math.atan2(q.vy, q.dir * q.vx);
+      if (on) { c.globalAlpha = 0.25 + 0.15 * Math.sin(t / 5); c.fillStyle = col; c.beginPath(); c.arc(cx, cy, 20, 0, 6.2832); c.fill(); c.globalAlpha = 1; }
+      c.save(); c.translate(cx, cy); c.rotate(ang);
+      c.fillStyle = '#2a2236'; rr(c, -2, -8, 28, 16, 6); c.fill();                       // le tube
+      c.fillStyle = col; rr(c, 20, -9, 7, 18, 3); c.fill();                              // la bouche
+      c.restore();
+      c.fillStyle = '#3b3354'; c.beginPath(); c.arc(cx, cy, 11, 0, 6.2832); c.fill();     // la culasse
+      c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(cx, cy, 11, 0, 6.2832); c.stroke();
+      c.fillStyle = '#2a2236'; c.fillRect(q.x + 4, q.y + 28, TILE - 8, 4);               // l'affût
+      if (on) { c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 3 + Math.sin(t / 4), 0, 6.2832); c.fill(); }
+    });
+  }
+
   /* ---------- Nouveaux éléments : tremplin, tapis, dalle fragile, portail ---------- */
   function drawSpring(c, x, y, pressed, t) {
     const sq = pressed ? 0.45 : 1;
@@ -650,6 +695,8 @@
       c.fillStyle = P_COL[i].main; c.fillRect(bx - 1, by - 22, 2, 18); c.beginPath(); c.moveTo(bx + 1, by - 22); c.lineTo(bx + 9, by - 18.5); c.lineTo(bx + 1, by - 15); c.closePath(); c.fill();
       c.globalAlpha = 1;
     });
+    if (L.cannons.length) drawCannons(c, G, t);
+    if (L.lifts.length) drawLifts(c, G, t);
     // joueurs
     G.players.forEach((p, i) => drawPlayer(c, p, i, t, S.you === i, S.t, G.won));
     if (S.emotes) G.players.forEach((p, i) => { if (S.emotes[i] && !p.dead) drawEmote(c, p, i, S.emotes[i], S.t); });
@@ -685,6 +732,8 @@
     L.portals.forEach((q) => { c.strokeStyle = G_COL[q.g]; c.lineWidth = 6; c.beginPath(); c.ellipse(q.x + 16, q.y + 16, 11, 14, 0, 0, 6.2832); c.stroke(); });
     for (let idx = 0; idx < L.base.length; idx++) if (L.vent[idx]) { const tx = idx % L.cols, ty = (idx - tx) / L.cols; c.globalAlpha = 0.4; c.fillStyle = G_COL[L.vent[idx]]; c.fillRect(tx * TILE + 6, ty * TILE, TILE - 12, TILE); c.globalAlpha = 1; }
     L.rspikes.forEach((sp) => { c.fillStyle = '#ff6b7a'; c.globalAlpha = 0.8; c.beginPath(); c.moveTo(sp.tx * TILE + 3, sp.ty * TILE + TILE); c.lineTo(sp.tx * TILE + 16, sp.ty * TILE + 12); c.lineTo(sp.tx * TILE + 29, sp.ty * TILE + TILE); c.closePath(); c.fill(); c.globalAlpha = 1; });
+    L.lifts.forEach((f) => { c.fillStyle = G_COL[f.g]; c.fillRect(f.x0, f.y0, f.w, 6); c.globalAlpha = 0.3; c.fillRect(f.axis === 'x' ? f.x0 + f.sg * f.total : f.x0, f.axis === 'x' ? f.y0 : f.y0 + f.sg * f.total, f.w, 6); c.globalAlpha = 1; });
+    L.cannons.forEach((q) => { c.fillStyle = G_COL[q.g]; c.beginPath(); c.arc(q.x + 16, q.y + 20, 11, 0, 6.2832); c.fill(); });
     L.plates.forEach((p) => { c.fillStyle = G_COL[p.g]; if (p.tog) { c.beginPath(); c.arc(p.x + 16, p.y - 4, 9, 0, 6.2832); c.fill(); } else c.fillRect(p.x, p.y, p.w, 8); });
     L.bells.forEach((b) => { c.fillStyle = GOLD; c.beginPath(); c.arc(b.x + 16, b.y + 16, 14, 0, 6.2832); c.fill(); c.strokeStyle = G_COL[b.g]; c.lineWidth = 5; c.stroke(); });
     L.doors.forEach((d) => { c.strokeStyle = GOLD; c.lineWidth = 5; c.strokeRect(d.x + 4, d.y + 4, d.w - 8, d.h - 4); });

@@ -172,6 +172,13 @@
           break;
         }
         case 'bridgeOff': Sfx.play('bridgeOff'); break;
+        case 'cannon': {
+          Sfx.play('spring'); S.shake = Math.max(S.shake, 6);
+          const q = L.cannons[b], pl = G.players[a];
+          if (q) { FX().ring(q.x + 16, q.y + 20, Render.G_COL[q.g], 30, 20); FX().emit(14, q.x + 16, q.y + 20, { dir: Math.atan2(q.vy, q.dir * q.vx), spread: 0.8, speed: 4, life: 22, size: 4, color: [Render.G_COL[q.g], '#fff', '#ffd24a'], g: 0.03 }); }
+          if (pl) FX().emit(6, pl.x + PW / 2, pl.y + PH / 2, { speed: 2, life: 18, size: 3, color: Render.P_COL[a].light, g: 0 });
+          break;
+        }
         case 'plateOn': case 'toggle': Sfx.play('plate'); break;
         case 'plateOff': break;
         case 'gateOpen': Sfx.play('gateOpen'); break;

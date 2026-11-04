@@ -565,8 +565,7 @@ module.exports = function (S, H) {
       yield* c.walkTo(65 * TILE);
       yield* c.hopTo(71 * TILE + 4, 90); yield* c.land();            // par-dessus le portail l
       yield* c.walkToTile(80);
-      let cur = yield* hopSeq(c, AG0, AP);
-      yield* hopTo(c, Object.assign({ from: cur }, AG1));
+      yield* H.relayP0(c);                                           // canon, barque
       yield* c.walkTo(145 * TILE + 4);                               // au bord du grand pont
       yield* c.until(() => c.G.bridge[3] > 0, 3000, '(pont O)');
       yield* c.walkToTile(172);
@@ -597,10 +596,7 @@ module.exports = function (S, H) {
       yield* c.walkToTile(56);
       yield* through(c, -1, () => c.me.y > 10 * TILE);               // retour par le portail l
       yield* c.walkToTile(69);
-      yield* c.until(() => c.other.x > 90 * TILE, 3000, '(l’autre mène)');
-      let cur = yield* hopSeq(c, AG0, AP, function* (i) { yield* c.until(() => c.other.onGround && c.other.x > (AP[Math.min(i + 1, AP.length - 1)].tx + (i + 1 >= AP.length ? 6 : 0)) * TILE - 8, 3000, '(libre)'); });
-      yield* c.until(() => c.other.onGround && c.other.x > 132 * TILE, 3000, '(l’autre est au sol)');
-      yield* hopTo(c, Object.assign({ from: cur }, AG1));
+      yield* H.relayP1(c);                                           // canon, barque
       yield* c.walkTo(141 * TILE + 4);                               // ressort, sous la cloche w
       yield* c.until(() => c.other.x > 144 * TILE, 3000, '(l’autre est au bord)');
       yield* jumpRing(c);

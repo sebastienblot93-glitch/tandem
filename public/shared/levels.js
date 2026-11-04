@@ -36,7 +36,7 @@
     { name: 'Souffle', sub: 'Courants d’air et interrupteurs', theme: 'ice' },
     { name: 'Mécanismes', sub: 'Bascules, relais et ruines', theme: 'ruins' },
     { name: 'Cosmos', sub: 'Tout ce que vous savez, en plus haut', theme: 'space' },
-    { name: 'Précision', sub: 'Chaque case compte', theme: 'forge' },
+    { name: 'Poids', sub: 'Plateformes, gravités, contrepoids', theme: 'forge' },
     { name: 'Casse-têtes', sub: 'Réfléchir à deux', theme: 'arcane' },
     { name: 'Maîtrise', sub: 'Rien ne vous sera épargné', theme: 'sky' },
   ];
@@ -420,31 +420,20 @@
       }, { rhythm: { period: 90, on: 44 }, rspike: { period: 110, on: 40 }, frag: { delay: 26, restore: 220 } }, [140, 22]),
 
     /* ================= Chapitre 8 : Précision ================= */
-    make(7, 'Pylônes',
-      'Des pylônes d’une case au-dessus des pics, espacés de 4 à 5 cases : décollez du tout dernier pixel. Plus loin, deux plaques sur deux pylônes éloignés doivent être tenues ENSEMBLE pour ouvrir la grille, qui se referme vite. Le deuxième à partir doit rattraper le temps perdu.',
+    make(7, 'Monte-charge',
+      'Un ascenseur ne monte que tant qu’une plaque est tenue, et une plaque en haut l’appelle aussi. Le premier monte pendant que l’autre tient la plaque d’en bas ; en haut, il la lâche pour faire redescendre l’ascenseur, puis la reprend quand son partenaire est dessus. Même principe pour la barque qui traverse les pics.',
       ({ rect, put }) => {
-        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
-        rect(1, 13, 9, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
-        rect(10, 15, 36, 1, '^'); rect(47, 13, 10, 3, '#');
-        // champ A : 4 à 5 cases entre pylônes, avec dénivelés
-        pillar(14, 1, 13); pillar(19, 1, 12); pillar(25, 1, 12); pillar(29, 2, 10); pillar(35, 1, 11); pillar(41, 1, 13);
-        put(30, 9, 'F'); put(49, 12, 'F');
-        // champ B : deux plaques éloignées, grille qui se referme
-        rect(57, 15, 29, 1, '^');
-        pillar(60, 2, 13); pillar(65, 1, 13); pillar(70, 2, 12); pillar(76, 1, 11); pillar(81, 1, 12);
-        put(60, 12, 'a'); put(70, 11, 'a'); put(61, 12, 'F');
-        rect(86, 13, 7, 3, '#'); rect(89, 1, 1, 12, 'A'); put(91, 12, 'F');
-        // champ C
-        rect(93, 15, 18, 1, '^');
-        pillar(97, 1, 13); pillar(102, 1, 12); pillar(107, 1, 13);
-        rect(111, 13, 8, 3, '#'); put(113, 12, 'F');
-        // champ D : plafond à 3 cases, sauts plats de 4 cases seulement
-        rect(119, 15, 59, 1, '^'); rect(120, 1, 58, 9, '#');
-        [[123, 13], [128, 13], [132, 13], [137, 14], [141, 13], [146, 13], [150, 13], [155, 13], [160, 13], [164, 13], [169, 13], [173, 13]].forEach(([x, t]) => pillar(x, 1, t));
-        put(141, 12, 'F');
-        rect(178, 13, 11, 3, '#');
-        rect(183, 10, 1, 3, 'D'); rect(186, 10, 1, 3, 'D');
-      }, { latch: { 1: 330 } }, [190, 16]),
+        rect(1, 17, 70, 2, '#');                                    // sol
+        rect(1, 8, 24, 9, '#'); rect(1, 10, 13, 7, '.');            // la tour : une salle basse sous un plafond épais (cases 8-9)…
+        rect(10, 8, 2, 2, '.'); put(10, 17, '.'); put(11, 17, '.'); // …et le puits de l’ascenseur (x 10-11)
+        put(3, 16, '1'); put(5, 16, '2');
+        put(7, 16, 'a'); put(13, 7, 'a');                           // appel de l’ascenseur : en bas, en haut (groupe 1, un seul appui suffit)
+        put(19, 7, 'F');
+        put(22, 7, 'b');                                            // appel de la barque, rive gauche
+        rect(25, 16, 16, 1, '^');                                   // les pics, 8 cases plus bas
+        rect(41, 8, 30, 9, '#'); put(43, 7, 'b'); put(46, 7, 'F');  // rive droite, appel de la barque
+        rect(66, 6, 1, 2, 'D'); rect(68, 6, 1, 2, 'D');
+      }, { any: [1, 2], lifts: [{ x: 10, y: 17, w: 2, len: -9, g: 1, speed: 2 }, { x: 25, y: 8, w: 2, len: 14, axis: 'x', g: 2, speed: 2 }] }, [72, 20]),
 
     make(7, 'Lune',
       'Ici, la gravité est faible : on saute loin, on retombe lentement. Des pylônes espacés de 6 à 7 cases, puis deux murs à franchir en saut en chaîne (un tunnel s’ouvre quand l’un tient sa plaque en haut). Pour finir, deux plaques à tenir ensemble, très loin l’une de l’autre.',
@@ -575,56 +564,41 @@
         rect(172, 9, 1, 4, 'D'); rect(175, 9, 1, 4, 'D');
       }, { belt: { speed: 6, flip: 1 }, frag: { delay: 26, restore: 260 } }, [216, 16]),
 
-    make(9, 'Les quatre épreuves',
-      'Une suite d’épreuves, sans filet : des pylônes à 4 et 5 cases (décollez au dernier pixel), un mur à tunnel en saut en chaîne, deux plaques très éloignées à tenir ensemble pendant que la grille se referme, puis deux interrupteurs qui s’annulent : l’un ouvre le sas mais dresse un mur de verre, l’autre — tout en haut — l’efface.',
-      ({ rect, put }) => {
-        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
-        rect(1, 13, 9, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
-        // épreuve 1 : pylônes
-        rect(10, 15, 45, 1, '^');
-        [[13, 1, 13], [18, 1, 13], [23, 1, 12], [28, 1, 11], [33, 2, 11], [40, 1, 11], [45, 1, 12], [50, 1, 12]].forEach(([x, w, t]) => pillar(x, w, t));
-        put(28, 10, 'F');
-        rect(55, 13, 28, 3, '#'); put(57, 12, 'F');
-        // épreuve 2 : mur de 5 cases, tunnel (grille A), plaque a sur la corniche
-        rect(66, 8, 6, 5, '#'); rect(67, 12, 5, 1, '.'); put(66, 12, 'A'); put(69, 7, 'a'); put(75, 12, 'F');
-        // épreuve 3 : deux plaques b très éloignées ; la grille B se referme vite
-        rect(83, 15, 29, 1, '^');
-        pillar(86, 2, 13); pillar(91, 1, 13); pillar(96, 2, 12); pillar(102, 1, 11); pillar(107, 1, 12);
-        put(86, 12, 'b'); put(96, 11, 'b'); put(87, 12, 'F');
-        rect(112, 13, 60, 3, '#'); rect(115, 1, 1, 12, 'B'); put(117, 12, 'F');
-        // épreuve 4 : sas à interrupteurs (groupe 3)
-        put(124, 12, 'z'); rect(127, 1, 1, 12, 'C'); put(130, 12, 'F');
-        rect(133, 8, 5, 1, '#'); put(135, 7, 'z');
-        rect(145, 1, 1, 12, 'Z'); put(149, 12, 'F');
-        rect(160, 9, 1, 4, 'D'); rect(163, 9, 1, 4, 'D');
-      }, { latch: { 2: 310 } }, [172, 16]),
+    make(9, 'Catapulte',
+      'Un canon ne tire que tant que l’autre tient une plaque : on se place dedans, on est propulsé de l’autre côté, et on tient à son tour la plaque de la rive d’arrivée (une plaque « d’appel » de chaque côté suffit). Trois tirs : une fosse de 7 cases, un canon quasi vertical vers une corniche de 7 cases, puis un double tir qui rebondit sur un îlot-relais.',
+      ({ rect, put, ground, pit }) => {
+        ground(1, 9); put(2, 16, '2'); put(3, 16, '1'); put(5, 16, 'a'); put(8, 16, 'g');
+        pit(10, 16);
+        ground(17, 46); put(19, 16, 'F'); put(21, 16, 'a'); put(24, 16, 'b'); put(27, 16, 'h');
+        rect(31, 10, 13, 7, '#'); put(34, 9, 'b'); put(36, 9, 'F'); put(38, 9, 'c'); put(41, 9, 'i');
+        pit(47, 53);
+        ground(54, 58); put(55, 16, 'i'); put(56, 16, 'i'); put(57, 16, 'i');
+        pit(59, 64);
+        ground(65, 92); put(68, 16, 'c'); put(70, 16, 'F');
+        rect(86, 13, 1, 4, 'D'); rect(88, 13, 1, 4, 'D');
+      }, { any: [1, 2, 3], cannon: { 1: { dir: 1, vx: 7, vy: -12, t: 80 }, 2: { dir: 1, vx: 3, vy: -17, t: 80 }, 3: { dir: 1, vx: 7, vy: -12, t: 80 } } }, [94, 20]),
 
     make(9, 'Cordée',
-      'Escalier fantôme : l’un tient la plaque du bas pour que l’autre monte, l’autre tient celle du haut pour ouvrir la grille. Puis une cloche trop haute (saut en chaîne) ouvre une porte pour très peu de temps, une fosse de 5 cases, deux plaques très éloignées à tenir ensemble, et pour finir des pylônes au-dessus des pics.',
+      'Deux étages, deux barques, un gouffre chacun. La plaque du haut fait avancer la barque du bas, et la plaque du bas fait avancer la barque du haut : le premier à traverser tient la plaque qui fait traverser l’autre. Au bout, un canon presque vertical crache le joueur du bas à travers le plafond, pourvu que celui du haut tienne sa plaque ; une fois en haut, il la tient à son tour pour que l’autre, qui saute dans le trou, soit tiré à son tour.',
       ({ rect, put }) => {
-        const pillar = (tx, w, top) => rect(tx, top, w, 15 - top, '#');
-        rect(1, 13, 91, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
-        // escalier fantôme (groupe 2) ; plaque c (groupe 3) sur la plate-forme, grille C dessous
-        put(12, 12, 'b');
-        put(16, 11, 'Y'); put(17, 11, 'Y'); put(21, 9, 'Y'); put(22, 9, 'Y');
-        rect(27, 7, 20, 1, '#'); put(38, 6, 'c'); rect(42, 8, 1, 5, 'C'); put(49, 12, 'F');
-        // cloche u (4 cases au-dessus du sol) → mur-porte M, loin devant
-        put(62, 8, 'u'); rect(77, 1, 1, 12, 'M'); put(58, 12, 'F');
-        rect(82, 13, 5, 3, '.'); rect(82, 15, 5, 1, '^'); put(88, 12, 'F');
-        // deux plaques a très éloignées ; la grille A se referme
-        rect(92, 13, 29, 3, '.'); rect(92, 15, 29, 1, '^');
-        pillar(95, 2, 13); pillar(100, 1, 13); pillar(105, 2, 12); pillar(111, 1, 11); pillar(116, 1, 12);
-        put(95, 12, 'a'); put(105, 11, 'a'); put(100, 12, 'F');
-        rect(121, 13, 70, 3, '#'); rect(124, 1, 1, 12, 'A'); put(126, 12, 'F');
-        // pylônes finaux
-        rect(136, 13, 40, 3, '.'); rect(136, 15, 40, 1, '^');
-        [[140, 13], [145, 12], [150, 12], [155, 11], [160, 11], [165, 12], [170, 13]].forEach(([x, t]) => pillar(x, 1, t));
-        put(155, 10, 'F');
-        rect(176, 13, 15, 3, '#'); rect(182, 9, 1, 4, 'D'); rect(185, 9, 1, 4, 'D');
-      }, { latch: { 1: 310 }, bell: { 1: { dur: 165, door: true } } }, [191, 16]),
+        rect(1, 11, 78, 12, '#');                                   // grande masse pleine…
+        rect(1, 16, 78, 5, '.');                                    // …creusée d’un tunnel (étage du bas, on marche sur la rangée 20)
+        rect(25, 11, 20, 2, '.'); rect(25, 13, 20, 1, '^');         // gouffre du haut (peu profond, pics au fond)
+        rect(25, 21, 20, 2, '.'); rect(25, 23, 20, 1, '^');         // gouffre du bas
+        rect(49, 11, 5, 5, '.');                                    // trou dans le plafond du tunnel : l’étage du haut est à 10 cases
+        put(3, 10, '1'); put(3, 20, '2');
+        put(20, 10, 'b');                                           // plaque du haut → barque du bas (groupe 2)
+        put(47, 20, 'a');                                           // plaque du bas → barque du haut (groupe 1)
+        put(47, 10, 'c'); put(56, 10, 'c'); put(50, 20, 'i');       // plaques du haut (avant / après le trou) + canon du bas (groupe 3, un seul appui suffit)
+        put(60, 10, 'F');
+        rect(66, 7, 1, 4, 'D'); rect(69, 7, 1, 4, 'D');
+      }, {
+        lifts: [{ x: 25, y: 11, w: 2, len: 18, axis: 'x', g: 1, speed: 2 }, { x: 25, y: 21, w: 2, len: 18, axis: 'x', g: 2, speed: 2 }],
+        cannon: { 3: { dir: 1, vx: 3, vy: -19, t: 80 } }, any: [3],
+      }, [80, 24]),
 
     make(9, 'Apothéose',
-      'Le grand final. Des chambres closes reliées par portails (l’un tient une plaque, l’autre ouvre la trappe), des pylônes jusqu’à 5 cases, le grand pont de 22 cases (celui qui sonne ne peut pas traverser à temps : l’autre passe en premier et sonne de l’autre rive), puis le sas à deux interrupteurs. Tout ce que vous avez appris, d’une traite.',
+      'Le grand final. Des chambres closes reliées par portails (l’un tient une plaque, l’autre ouvre la trappe), un canon et une barque au-dessus des pics (l’autre tient la plaque d’appel), le grand pont de 22 cases (celui qui sonne ne peut pas traverser à temps : l’autre passe en premier et sonne de l’autre rive), puis le sas à deux interrupteurs. Tout ce que vous avez appris, d’une traite.',
       ({ rect, put }) => {
         const pillar = (tx, top) => rect(tx, top, 1, 15 - top, '#');
         rect(1, 13, 84, 3, '#'); put(3, 12, '2'); put(5, 12, '1');
@@ -633,10 +607,11 @@
         rect(36, 3, 13, 7, '#'); rect(37, 4, 11, 5, '.'); put(38, 8, 'k'); put(42, 8, 'a'); put(45, 9, 'B'); put(46, 9, 'B');
         rect(52, 3, 13, 7, '#'); rect(53, 4, 11, 5, '.'); put(54, 8, 'l'); put(58, 8, 'b');
         put(68, 12, 'l'); put(74, 12, 'F');
-        // 2. pylônes (jusqu’à 5 cases de vide)
-        rect(85, 15, 45, 1, '^');
-        [[89, 13], [94, 13], [99, 12], [104, 11], [110, 11], [115, 12], [120, 12], [125, 13]].forEach(([x, t]) => pillar(x, t));
-        put(104, 10, 'F');
+        // 2. canon puis barque, au-dessus des pics
+        rect(85, 13, 6, 3, '#'); put(86, 12, 'a'); put(88, 12, 'g');               // îlot 1 : plaque d’appel du canon + canon (7 cases de vide)
+        rect(91, 15, 6, 1, '^'); rect(97, 13, 12, 3, '#'); put(100, 12, 'a'); put(105, 12, 'b');
+        rect(109, 15, 13, 1, '^'); rect(122, 13, 8, 3, '#'); put(124, 12, 'b');    // îlot 2 : plaques d’appel, puis la barque (11 cases) jusqu’à l’îlot 3
+        put(102, 12, 'F');
         // 3. grand pont de 22 cases : ressort + cloche w à chaque rive
         rect(130, 13, 16, 3, '#'); put(141, 13, 'T'); put(141, 6, 'w'); put(133, 12, 'F');
         rect(146, 15, 22, 1, '^'); rect(146, 13, 22, 1, 'O');
@@ -648,7 +623,7 @@
         // 5. dernière fosse (5 cases) puis les portes
         rect(209, 13, 5, 2, '.'); rect(209, 15, 5, 1, '^');
         rect(222, 9, 1, 4, 'D'); rect(226, 9, 1, 4, 'D');
-      }, { bell: { 3: { dur: 245 } } }, [235, 16]),
+      }, { bell: { 3: { dur: 245 } }, any: [1, 2], cannon: { 1: { dir: 1, vx: 7, vy: -12, t: 80 } }, lifts: [{ x: 109, y: 13, w: 2, len: 11, axis: 'x', g: 2, speed: 2 }] }, [235, 16]),
   ];
 
   // Rappel court affiché en haut de l'écran au début de la partie (l'indice complet est dans le menu)
@@ -673,16 +648,16 @@
     'La cloche est trop haut : le ressort et un saut en chaîne. Le pont ne dure pas, courez !',
     'Dalles fragiles : on court sans s’arrêter. Le ressort vous jette sur le chemin suspendu.',
     'Trois étages à gravir ensemble. Ne vous quittez pas !',
-    'Décollez au dernier pixel : 4 à 5 cases de vide entre pylônes. Deux plaques éloignées : tenez-les ENSEMBLE.',
+    'L’ascenseur monte tant qu’une plaque est tenue : un tient en bas, l’autre monte, puis on inverse.',
     'Faible gravité : on saute très loin. Le mur de 6 cases : saut en chaîne, l’un tient la plaque en haut.',
     'Gravité lourde : 3 cases de vide au maximum. Escalier fantôme : l’un tient la plaque, l’autre monte.',
     'Un interrupteur ouvre le sas mais dresse un mur de verre ; l’autre, en haut, l’efface. Une seule pression !',
     'Le pont ne dure pas : le premier à traverser sonne l’autre rive pour rappeler son partenaire.',
     'Chambres closes : l’un tient sa plaque, l’autre ouvre la trappe. Sautez par-dessus les portails du chemin !',
     'Tapis trop rapides : si l’un tient la plaque, ils s’inversent. L’autre, au bout, tient la grille d’en haut.',
-    'Quatre épreuves d’affilée, sans filet. Gardez votre sang-froid.',
-    'Escalier fantôme, cloche haute, deux plaques éloignées, pylônes : en cordée.',
-    'Le grand final : portails, pylônes, grand pont et sas. Tout ce que vous savez.',
+    'Un canon ne tire que si l’autre tient une plaque. Posez-vous dedans, puis tenez la plaque d’arrivée à votre tour.',
+    'La plaque du haut fait avancer la barque du bas, et inversement. Celui qui traverse en premier tient la plaque de l’autre.',
+    'Le grand final : portails, canon, barque, grand pont et sas. Tout ce que vous savez.',
   ];
   LEVELS.forEach((l, i) => { l.tip = TIPS[i] || l.hint; });
 

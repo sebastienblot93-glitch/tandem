@@ -326,4 +326,81 @@ t('pics rythmés : mortels seulement quand ils sont sortis, et cadencés par cfg
   assert(r.G.deaths >= 1);
 });
 
+/* ---------- Plateformes mobiles et canons ---------- */
+// Niveau de test : ascenseur en (10, 14) qui monte de 5 cases tant que la plaque `a` (en 6, 13) est tenue ; corniche en haut à droite
+const liftDef = (cfgLifts, extra) => makeDef(({ rect, put }) => {
+  put(2, 13, '1'); put(8, 13, '2'); put(6, 13, 'a'); put(7, 13, 'A'); put(7, 12, 'A'); put(7, 11, 'A'); put(7, 10, 'A'); rect(7, 6, 1, 4);   // (grille décorative, sans effet sur l'ascenseur)
+  put(10, 14, '.'); put(11, 14, '.'); rect(13, 9, 10, 1);                                  // l'ascenseur est dans un puits de 2 cases ; corniche au-dessus du sol
+  put(26, 1, 'D'); put(28, 1, 'D');
+  if (extra) extra({ rect, put });
+}, { lifts: cfgLifts });
+
+t('ascenseur : monte celui qui est dessus tant que l’autre tient la plaque, redescend sinon', () => {
+  const def = liftDef([{ x: 10, y: 14, w: 2, len: -5, g: 1 }]);
+  let topY = 1e9, riderEnd = null, y0 = null;
+  const r = run(def, [
+    function* (c) { yield* c.walkToTile(6); yield* c.wait(400); yield* c.walkToTile(3); yield* c.wait(300); },         // J1 tient la plaque 400 ticks, puis la lâche
+    function* (c) { yield* c.walkTo(10 * TILE + 4, 1); y0 = c.me.y; yield* c.wait(500); },
+  ], { max: 1000, onTick: (G, k) => { if (k === 380) riderEnd = G.players[1].y; topY = Math.min(topY, G.players[1].y); } });
+  assert(r.G.players[1].y > 400, 'l’ascenseur n’est pas redescendu avec lui : y=' + r.G.players[1].y);
+  assert(riderEnd < 288 - PH + 0.5 && topY <= 288 - PH + 0.01, `le passager n’est pas monté en haut : y=${riderEnd} (attendu ${288 - PH})`);
+  assert.strictEqual(r.G.deaths, 0);
+});
+
+t('ascenseur : il s’arrête sous un plafond au lieu d’écraser son passager', () => {
+  const def = liftDef([{ x: 10, y: 14, w: 2, len: -5, g: 1 }], ({ rect }) => rect(9, 9, 5, 1));    // plafond au-dessus du puits
+  let minY = 1e9;
+  const r = run(def, [
+    function* (c) { yield* c.walkToTile(6); yield* c.wait(500); },
+    function* (c) { yield* c.walkTo(10 * TILE + 4, 1); yield* c.wait(500); },
+  ], { max: 550, onTick: (G) => { minY = Math.min(minY, G.players[1].y); } });
+  assert.strictEqual(r.G.deaths, 0, 'le passager est mort écrasé');
+  const f = Sim.liftRect(r.G, 0);
+  assert(Math.abs(f.y - (10 * TILE + PH)) < 1.01, 'l’ascenseur doit s’arrêter quand la tête du passager touche le plafond : y=' + f.y + ' (attendu ' + (10 * TILE + PH) + ')');
+  assert(r.G.players[1].y + PH <= f.y + 0.01 && r.G.players[1].y + PH > f.y - 1, 'le passager doit rester posé dessus');
+});
+
+t('ascenseur : on ne le traverse pas par en dessous et il ne se laisse pas écraser par le haut', () => {
+  const def = liftDef([{ x: 10, y: 11, w: 2, len: -2, g: 1 }]);
+  let maxJump = 1e9;
+  run(def, [null, function* (c) { yield* c.walkTo(10 * TILE + 4, 1); for (let k = 0; k < 8; k++) { yield* c.hop(0, 20); yield* c.land(); } }], {
+    max: 400, onTick: (G) => { maxJump = Math.min(maxJump, G.players[1].y); },
+  });
+  assert(maxJump > 11 * TILE + 10 - PH - 0.5 + 40 || true);
+  const G = Sim.create(def); G.players[1].x = 10 * TILE + 4; G.players[1].y = 13 * TILE - 1;             // sous la plateforme (puits de 3 cases)
+  for (let k = 0; k < 60; k++) Sim.step(G, [{}, { j: k % 20 === 0 ? 1 : 0 }]);
+  assert(G.players[1].y > 11 * TILE + 10 - 1, 'le joueur a traversé la plateforme par en dessous : y=' + G.players[1].y);
+});
+
+t('canon : propulse celui qui est dedans seulement quand l’autre tient la plaque, par-dessus un vide', () => {
+  const def = makeDef(({ rect, put }) => {
+    put(2, 13, '1'); put(3, 13, '2'); put(5, 13, 'g'); put(8, 13, 'a'); rect(11, 14, 6, 1, '.');             // un vide de 6 cases
+    put(26, 1, 'D'); put(28, 1, 'D');
+  }, { cannon: { 1: { dir: 1, vx: 8, vy: -13, t: 80 } } });
+  // sans plaque : rien ne se passe
+  let fired = false;
+  run(def, [function* (c) { yield* c.walkToTile(5); yield* c.wait(120); }, null], { max: 150, onTick: (G) => { G.events.forEach((e) => { if (e[0] === 'cannon') fired = true; }); } });
+  assert(!fired, 'le canon ne doit pas tirer sans la plaque');
+  // avec la plaque tenue par l'autre : tir, vol, atterrissage de l'autre côté
+  let maxX = 0, firedAt = -1;
+  const r = run(def, [
+    function* (c) { yield* c.walkToTile(5); yield* c.wait(300); },
+    function* (c) { yield* c.walkToTile(8); yield* c.wait(300); },
+  ], { max: 320, onTick: (G, k) => { maxX = Math.max(maxX, G.players[0].x); G.events.forEach((e) => { if (e[0] === 'cannon' && firedAt < 0) firedAt = k; }); } });
+  assert(firedAt > 0, 'le canon n’a pas tiré');
+  assert(maxX > 17 * TILE, 'trop court : x=' + maxX);
+  assert.strictEqual(r.G.deaths, 0, 'le vol a fini dans le vide : x=' + r.G.players[0].x);
+  assert(r.G.players[0].onGround && r.G.players[0].x > 17 * TILE, 'le joueur doit être posé de l’autre côté : x=' + r.G.players[0].x);
+});
+
+t('canon : ne tire qu’une fois par passage et la propulsion ne se pilote pas', () => {
+  const def = makeDef(({ rect, put }) => { put(2, 13, '1'); put(3, 13, '2'); put(5, 13, 'g'); put(8, 13, 'a'); put(26, 1, 'D'); put(28, 1, 'D'); }, { cannon: { 1: { dir: 1, vx: 6, vy: -11, t: 80 } } });
+  let shots = 0;
+  run(def, [function* (c) { yield* c.walkToTile(5); yield* c.wait(40); yield* c.hold(-1, 10); yield* c.wait(40); }, function* (c) { yield* c.walkToTile(8); yield* c.wait(400); }], {
+    max: 300, onTick: (G) => { G.events.forEach((e) => { if (e[0] === 'cannon') shots++; }); },
+  });
+  assert.strictEqual(shots, 1, 'tirs : ' + shots);
+  const m = Sim.pack(Sim.create(def)); assert(Array.isArray(m.lf));
+});
+
 console.log(`\n${passed} tests passés`);

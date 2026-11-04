@@ -1,6 +1,6 @@
 {
   "name": "tandem",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "TANDEM — jeu de plateforme coopératif à deux, uniquement avec les flèches du clavier",
   "main": "server.js",
   "scripts": {
