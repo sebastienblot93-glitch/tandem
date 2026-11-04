@@ -366,15 +366,20 @@
     if (p.dead) { pstate[i].wasGround = false; return; }
     const st = pstate[i];
     if (st.t === undefined || now < st.t) Object.assign(st, { wasGround: p.onGround, lastX: p.x, lastVy: 0, walk: 0, landAt: -1e9, blinkAt: now + 1500 + i * 700, fd: p.face || 1, joyAt: -1e9 });
-    // atterrissage → écrasement
-    if (p.onGround && !st.wasGround && st.lastVy > 3) { st.landAt = now; st.landPow = Math.min(1, st.lastVy / 10); }
-    const moved = Math.abs(p.x - st.lastX);
-    const walking = p.onGround && moved > 0.4 && moved < 12;
-    if (walking) st.walk += moved * 0.34;
-    st.wasGround = p.onGround; st.lastX = p.x; st.lastVy = p.vy; st.t = now;
-    st.fd += ((p.face || 1) - st.fd) * 0.35;
-    // clignement
-    if (now > st.blinkAt) { st.blinkOn = now + 130; st.blinkAt = now + 2200 + ((now * 7 + i * 13) % 2600); }
+    const fresh = st.t !== now;                                  // une seule mise à jour d'animation par image, même si le niveau est dessiné deux fois (écran partagé)
+    let moved, walking;
+    if (fresh) {
+      // atterrissage → écrasement
+      if (p.onGround && !st.wasGround && st.lastVy > 3) { st.landAt = now; st.landPow = Math.min(1, st.lastVy / 10); }
+      moved = Math.abs(p.x - st.lastX);
+      walking = p.onGround && moved > 0.4 && moved < 12;
+      if (walking) st.walk += moved * 0.34;
+      st.wasGround = p.onGround; st.lastX = p.x; st.lastVy = p.vy; st.t = now;
+      st.fd += ((p.face || 1) - st.fd) * 0.35;
+      // clignement
+      if (now > st.blinkAt) { st.blinkOn = now + 130; st.blinkAt = now + 2200 + ((now * 7 + i * 13) % 2600); }
+      st.cm = moved; st.cw = walking;
+    } else { moved = st.cm || 0; walking = !!st.cw; }
     const blink = now < (st.blinkOn || 0);
     // forme : étirement en l'air, écrasement à l'atterrissage, respiration à l'arrêt
     let sx = 1, sy = 1;
@@ -516,14 +521,51 @@
     let tx = (x0 + x1) / 2 - vw / 2, ty = (y0 + y1) / 2 - vh / 2 - 14;
     tx = L.w > vw ? Math.max(0, Math.min(L.w - vw, tx)) : (L.w - vw) / 2;
     ty = L.h > vh ? Math.max(0, Math.min(L.h - vh, ty)) : (L.h - vh) / 2;
-    return { x: tx, y: ty, z };
+    return { x: tx, y: ty, z, fit: 1 / need };
+  }
+  // Écran partagé : quand les deux joueurs sont trop éloignés pour tenir dans une seule vue, chacun a sa moitié d'écran, centrée sur lui
+  const SPLIT_Z = 0.8;
+  function splitTargets(G) {
+    const L = G.L, z = SPLIT_Z, vw = (W / 2) / z, vh = H / z;
+    return G.players.map((p) => {
+      let tx = p.x + PW / 2 - vw / 2, ty = p.y + PH / 2 - vh / 2 - 14;
+      tx = L.w > vw ? Math.max(0, Math.min(L.w - vw, tx)) : (L.w - vw) / 2;
+      ty = L.h > vh ? Math.max(0, Math.min(L.h - vh, ty)) : (L.h - vh) / 2;
+      return { x: tx, y: ty };
+    });
+  }
+  function updateSplit(cam, G, t, snap) {
+    const was = cam.split;
+    if (!cam.split && t.fit < ZMIN) cam.split = true;
+    else if (cam.split && t.fit > ZMIN * 1.12) cam.split = false;            // marge : pas de va-et-vient
+    if (!cam.split) return;
+    cam.sz = SPLIT_Z;
+    const tg = splitTargets(G);
+    if (!was || snap || !cam.sub) cam.sub = tg.map((q) => ({ x: q.x, y: q.y }));
+    else tg.forEach((q, i) => { cam.sub[i].x += (q.x - cam.sub[i].x) * 0.14; cam.sub[i].y += (q.y - cam.sub[i].y) * 0.14; });
+    const L = G.L, vw = (W / 2) / SPLIT_Z, vh = H / SPLIT_Z;
+    cam.sub.forEach((o, i) => {
+      keepInView([G.players[i]], o, vw, vh);
+      o.x = L.w > vw ? Math.max(0, Math.min(L.w - vw, o.x)) : (L.w - vw) / 2; o.y = L.h > vh ? Math.max(0, Math.min(L.h - vh, o.y)) : (L.h - vh) / 2;
+    });
+  }
+  // Garde-fou : malgré l'amorti de la caméra, un joueur vivant ne sort jamais du cadre (marge de 24 px)
+  function keepInView(ps, o, vw, vh) {
+    const m = 24;
+    ps.forEach((p) => {
+      if (p.dead) return;
+      if (p.x < o.x + m) o.x = p.x - m; else if (p.x + PW > o.x + vw - m) o.x = p.x + PW - vw + m;
+      if (p.y < o.y + m) o.y = p.y - m; else if (p.y + PH > o.y + vh - m) o.y = p.y + PH - vh + m;
+    });
   }
   function updateCam(cam, G, snap) {
     const t = camTarget(G);
-    if (snap || !cam.init) { cam.x = t.x; cam.y = t.y; cam.z = t.z; cam.init = true; return cam; }
-    cam.z += (t.z - cam.z) * 0.06;
+    if (snap || !cam.init) { cam.x = t.x; cam.y = t.y; cam.z = t.z; cam.init = true; cam.split = false; updateSplit(cam, G, t, true); return cam; }
+    updateSplit(cam, G, t, false);
+    cam.z = t.z < cam.z ? t.z : cam.z + (t.z - cam.z) * 0.06;        // dézoom immédiat (on ne perd jamais un joueur de vue), zoom en douceur
     const vw = W / cam.z, vh = H / cam.z, L = G.L;
     cam.x += (t.x - cam.x) * 0.14; cam.y += (t.y - cam.y) * 0.14;
+    keepInView(G.players, cam, vw, vh);
     // le zoom qui bouge ne doit jamais découvrir le vide autour du niveau
     if (L.w > vw) cam.x = Math.max(0, Math.min(L.w - vw, cam.x)); else cam.x = (L.w - vw) / 2;
     if (L.h > vh) cam.y = Math.max(0, Math.min(L.h - vh, cam.y)); else cam.y = (L.h - vh) / 2;
@@ -533,6 +575,20 @@
   /* ---------- Dessin complet d'une image ----------
      S = { G, theme, t (ms), you (0|1|-1), scale, cam:{x,y,z}, shake:{x,y} } */
   function draw(c, S) {
+    const cam = S.cam;
+    if (!(cam && cam.split && cam.sub)) return drawView(c, S);
+    const sc = S.scale || 1, z = cam.sz || SPLIT_Z, order = S.you === 1 ? [1, 0] : [0, 1];       // à gauche : soi-même (ou le joueur 1 en local)
+    order.forEach((pi, h) => {
+      c.save(); c.setTransform(sc, 0, 0, sc, 0, 0); c.beginPath(); c.rect(h * W / 2, 0, W / 2, H); c.clip();
+      drawView(c, Object.assign({}, S, { cam: { x: cam.sub[pi].x - h * (W / 2) / z, y: cam.sub[pi].y, z } }));
+      c.restore();
+    });
+    c.save(); c.setTransform(sc, 0, 0, sc, 0, 0);
+    c.fillStyle = '#0d0a1c'; c.fillRect(W / 2 - 2, 0, 4, H);
+    order.forEach((pi, h) => { c.fillStyle = P_COL[pi].main; c.fillRect(h * W / 2 + (h ? 2 : 0), H - 4, W / 2 - 2, 4); });          // liseré de la couleur du joueur
+    c.restore();
+  }
+  function drawView(c, S) {
     const G = S.G, L = G.L, t = Math.floor(S.t / 16.67), sc = S.scale || 1;
     const th = THEMES[S.theme] || THEMES.meadow;
     const cam = S.cam || { x: Math.max(0, (L.w - W) / 2), y: Math.max(0, (L.h - H) / 2), z: 1 };
